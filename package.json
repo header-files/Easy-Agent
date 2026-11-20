@@ -1,0 +1,31 @@
+{
+  "name": "easy-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Easy Agent 的 Phase 0 工程骨架",
+  "type": "module",
+  "engines": {
+    "node": ">=26.0.0 <27"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/header-files/Easy-Agent.git"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "build": "tsc -p tsconfig.build.json",
+    "pretest": "npm run build",
+    "test": "node --test tests/*.test.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.6.6",
+    "eslint": "10.15.0",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0"
+  }
+}

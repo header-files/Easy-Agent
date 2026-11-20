@@ -1,0 +1,10 @@
+---
+description: Easy Agent project-wide architecture, current Phase 0 and change history policy
+alwaysApply: true
+---
+
+这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-0.md`**，需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
+
+**当前仅执行 Phase 0 工程初始化与目录骨架任务，不实现 Agent、Loop、Engine、ModelClient、模型请求或 CLI 对话功能。**
+
+架构基线：四个运行职责层（Application / Agent / Execution / Runtime）+ 横向 Harness + Composition / Bootstrap；Loop 策略与 Engine 机制分离；Runtime 按能力域替换；避免过度设计。六个一级职责模块均需就近 `README.md` 和 `changes.md`。模块级实质性变更同步更新模块 README 并在模块 changes 追加历史；全局/跨模块决策还需在 `docs/changes.md` 保留摘要与链接。以阶段验收和实际运行结果为准，不把规划功能描述为已实现。
