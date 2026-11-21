@@ -11,3 +11,11 @@ export {
   OpenAICompatibleModelClient,
   type OpenAICompatibleConfig,
 } from './runtime/model/index.ts';
+export * from './harness/contracts/tool/index.ts';
+export {
+  DefaultToolRegistry,
+  DefaultToolExecutor,
+  type DefaultToolExecutorOptions,
+  toModelToolDefinition,
+  toToolResultMessage,
+} from './runtime/tool/index.ts';

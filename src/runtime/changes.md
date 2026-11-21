@@ -48,3 +48,14 @@ Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追
 - 设计边界：请求级关联 ID 和状态独立，日志仅包含安全元数据；logger 初始化和写入故障不能改变模型结果。
 - 依据/验证：公共契约、协议转换、并发隔离和日志生命周期的离线测试；详情见 [Model 时间线](model/changes.md)，跨模块摘要见 [项目级日志](../../docs/changes.md)。
 - 现行说明：[README.md](README.md)、[Model README](model/README.md)。
+
+### 2026-11-22 — 增加本地 Tool Runtime 能力域
+
+- 主题 ID：`runtime.tool-system`
+- 变更前：Runtime 已有 Logging 与 Model System，模型可以生成工具调用数据，但没有本地工具注册和执行能力。
+- 变更后：新增 Tool 子能力域及本地 README/changes，实现 Registry、Executor、Ajv draft-07 严格参数校验、取消/超时、并发与注册快照，以及复用既有 Model 类型的数据转换。
+- 修改原因：用户确认 Phase 1.2 在 Agent Loop 之前实现独立工具能力；公共契约基础验收通过后再落地 Runtime。
+- 设计边界：不自动重试，不保证 Handler 被强制终止或副作用被回滚；工具数据桥不调用模型，不实现 Phase 1.3 Loop 或工具治理平台。
+- 影响范围：`src/runtime/tool`、Tool 公共契约和离线测试；Model 1.1 源码和契约未修改，Logging 继续作为既有基础设施复用。
+- 依据/验证：注册、Schema、执行、控制、快照、并发及 Bridge 离线测试；细节见 [Tool 时间线](tool/changes.md)，全局摘要见 [项目记录](../../docs/changes.md)。
+- 现行说明：[Tool README](tool/README.md)、[README.md](README.md)。

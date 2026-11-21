@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.1：实现 Model System，不自动接续 Phase 1.2 或最小 Agent 闭环。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.2：实现 Tool Runtime，不自动接续 Phase 1.3 Agent Loop 或最小 Agent 闭环。**
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-1.1.md`：当前阶段范围、任务与验收标准；`docs/phase-0.md` 为已完成工程基线。**
+3. **`docs/phase-1.2.md`：当前阶段范围、任务与验收标准；`docs/phase-0.md` 和 `docs/phase-1.1.md` 保留已完成基线及历史验收。**
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,41 +29,39 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前阶段应该做什么：Phase 1.1
+## 3. 当前阶段应该做什么：Phase 1.2
 
-在已完成的 Phase 0 与 [Runtime Logging](../src/runtime/logging/README.md) 基线上，严格依照 [phase-1.1.md](phase-1.1.md) 开展：
+在已完成的 Phase 0、[Logging](../src/runtime/logging/README.md) 和 [Model System](phase-1.1.md) 基线上，依照 [phase-1.2.md](phase-1.2.md) 实施：
 
-- 在 `src/harness/contracts/model/` 定义 ModelClient、消息、参数、工具、响应、流式事件、调用选项和统一错误契约，公共类型不依赖 Provider SDK。
-- 在 `src/runtime/model/` 实现 OpenAI-compatible Chat Completions Adapter，支持 `generate()`、`stream()`、Tool Calling 和 Tool Result 映射。
-- 所有生成参数由 `ModelRequest.parameters` 传入；标准参数映射，扩展参数原名透传，拒绝核心字段覆盖及等价参数冲突。
-- 实例可复用；请求级缓存、ToolCall 组装、取消和超时状态独立，允许 generate/stream 自然并发。
-- ModelClient 使用既有 Logger 门面记录生命周期元数据，支持注入 Logger；不记录消息、工具参数、请求/响应正文、认证配置或原始底层错误。
-- 补充公共契约、映射、流式协议、错误、取消/超时、并发、资源释放及生命周期日志的离线测试。
-- 同步维护 Harness、Runtime 及子模块的现行说明和时间线，项目级记录阶段切换与跨模块决策。
+- Harness 定义 ToolSpec、ToolHandler、ToolRegistry、ToolExecutor、ToolResult，以及调用上下文、选项和 ToolExecutionError；公共接口不依赖 Provider 或 Agent Loop。
+- Runtime 提供可复用的 DefaultToolRegistry/DefaultToolExecutor，注册时校验并复制工具声明，执行时固定本次工具快照。
+- 严格解析和校验对象参数；不补默认值、不转换类型、不删除未知字段。校验失败不得调用 Handler。
+- 业务失败返回 ToolResult；取消/超时抛出 ToolExecutionError。取消是协作机制，不承诺强制终止或副作用回滚，不自动重试。
+- 通过两个轻量 Model Bridge 复用既有 ModelToolDefinition/ToolResultMessage；ModelToolCall 可结构兼容地直接执行，不修改 ModelClient 公共契约。
+- 验证并发、注销期间的在途隔离、取消/超时、错误安全及日志，维护模块 README/changes 与项目级记录。
 
-Phase 0 的 TypeScript / Node.js / ESM、统一 Logging、质量脚本和文档约束继续适用；历史验收见 [phase-0.md](phase-0.md)。
+更新后的 Phase 1 顺序为 **1.1 Model → 1.2 Tool → 1.3 Loop → 1.4 Engine → 1.5 Agent Management → 1.6 Composition + CLI**，详见 [阶段索引](phase-1.md)。只有当前 1.2 获得实施授权。
 
 ## 4. 不在本次阶段实现的功能
 
-- Agent Loop、Execution Engine、AgentManager / SessionAgent 和 CLI 对话。
-- Tool Runtime、工具注册/参数校验/实际执行；模型产生工具调用不代表工具已经运行。
-- 多模态、Reasoning Content 专用协议、Responses API、其他 Provider 原生协议。
-- Model Registry、路由、自动重试/Fallback、全局并发限制和请求队列。
-- Session 调度、上下文管理、Token Budget、Memory、MCP、Skill 和持久化。
-- HTTP 服务、SDK 发布、Web UI、复杂插件框架、DI 容器和分布式部署。
+- Agent Loop、Execution Engine、AgentManager/Session、Composition 或 CLI 业务入口。
+- 完整模型—工具—模型循环；ToolExecutor 不调用 ModelClient，不决定下一步模型行为。
+- MCP、Skill、Sandbox、Approval、工具持久化、复杂工具调度器、全局队列、资源锁或自动重试框架。
+- HTTP API、SDK 发布、Web UI、复杂插件容器、DI 框架和分布式部署。
+- 文件轮转、远端日志服务、trace 系统与新的业务事件平台。
 
-未来能力只保留必要职责说明，不创建无用接口或占位实现。
+已有 Model Runtime 负责工具调用数据生成和协议映射，Tool Runtime 负责实际执行；二者的循环策略留到 Phase 1.3。
 
 ## 5. 推荐开发顺序
 
-1. 检查已有工程和 Git 工作区，保留用户现有改动；按模块读取就近 README/changes。
-2. 实现 Harness Model Contracts 及契约测试。
-3. 实现 Runtime 请求/响应/流式映射、Tool Calling、参数处理及统一生命周期日志。
-4. 实现请求取消、完整调用时限及资源释放，验证单实例多请求状态隔离。
-5. 补齐离线单元/集成测试、模块文档和项目级决策记录。
-6. 执行并报告类型检查、lint、格式检查、构建与测试的真实结果。
+1. 检查现有工程和工作区，按模块读取就近 README/changes；对照实际 Model 类型。
+2. 完成 Harness Tool Contracts、公共导出、类型检查和契约测试，再进入 Runtime 实现。
+3. 实现 Registry 注册校验、防御性复制、查询/列举/注销与对应测试。
+4. 实现 Executor 参数解析/校验、Handler 执行、错误转换、独立取消/超时及并发。
+5. 实现 Model Bridge 并验证在途注销隔离、错误安全、日志与数据转换。
+6. 更新模块和项目文档，执行类型检查、lint、格式检查、构建与全部离线测试。
 
-阶段任务及 Definition of Done 以 [phase-1.1.md](phase-1.1.md) 为准；完成后等待新的阶段授权。
+阶段任务及 Definition of Done 以 [phase-1.2.md](phase-1.2.md) 为准；完成后停止，不自动接续 Phase 1.3。
 
 ## 6. 开发与验证约束
 
@@ -97,7 +95,9 @@ Phase 0 的 TypeScript / Node.js / ESM、统一 Logging、质量脚本和文档�
 | `docs/architecture.md`          | **当前有效**架构、职责、目标目录结构                                             |
 | `docs/conventions.md`           | 技术、代码、安全、测试及文档规范                                                 |
 | `docs/phase-0.md`               | 已完成的工程初始化基线和历史验收                                                 |
-| `docs/phase-1.1.md`             | **当前** Model System 范围和验收                                                 |
+| `docs/phase-1.1.md`             | 已完成 Model System 基线与历史验收                                               |
+| `docs/phase-1.2.md`             | **当前** Tool Runtime 范围与验收                                                 |
+| `docs/phase-1.md`               | Phase 1 阶段顺序索引                                                             |
 | `src/runtime/logging/README.md` | 已完成 Logging 的接口、配置与安全边界                                            |
 | `docs/roadmap.md`               | 后续能力范围，不是本期待办                                                       |
 | `docs/changes.md`               | 项目级架构、公共规范及跨模块决策的**可追溯时间线**                               |
@@ -137,6 +137,6 @@ Phase 0 的 TypeScript / Node.js / ESM、统一 Logging、质量脚本和文档�
 
 1. 创建或修改了哪些文件，项目骨架实际完成到什么程度。
 2. 运行过的 `typecheck`、`lint`、`format:check`、`build`、`test` 命令及**真实结果**。
-3. 当前未实现的功能（尤其是 Agent Loop、工具执行、Session、CLI 交互）；本次影响的模块说明文件与本地变更日志。
+3. 当前未实现的功能（尤其是 Agent Loop、完整模型—工具循环、Session、Engine、CLI 交互）；本次影响的模块说明文件与本地变更日志。
 4. 是否涉及实质性设计/实现变更，变更记录是否已追加。
 5. 需要用户决策的架构偏离或阻塞，不自行扩大任务范围。

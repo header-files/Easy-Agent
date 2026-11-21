@@ -124,3 +124,25 @@
 - 模块记录：[Harness](../src/harness/changes.md)、[Model Contracts](../src/harness/contracts/model/changes.md)、[Runtime](../src/runtime/changes.md)、[Runtime Model](../src/runtime/model/changes.md)。具体行为与验证由模块记录和阶段实际验收维护，不在此重复全文。
 - 实际验收：2026-11-21，类型检查、lint、全仓格式检查、构建及全部离线测试通过；75 项通过、0 失败、0 跳过。命令、测试构成与真实 API 未验证的边界见 [Phase 1.1 实际验收](phase-1.1.md#实际验收记录)。
 - 现行规范：[Phase 1.1](phase-1.1.md)、[模型公共契约](../src/harness/contracts/model/README.md)、[Runtime Model](../src/runtime/model/README.md)。
+
+### 2026-11-22 — 将 Tool Runtime 确认为 Phase 1.2 并细化后续实施顺序
+
+- 主题 ID：`delivery.phase-scope`
+- 变更前：Phase 1.1 Model System 已完成；现行路线图将 Agent Loop 列为 Phase 1.2，Tool Runtime/工具执行仍在更后阶段，后续 Engine/Agent/Composition 的细分顺序尚未统一。
+- 变更后：按用户当前任务书确定 **1.1 Model（已完成）→ 1.2 Tool（当前）→ 1.3 Loop → 1.4 Engine → 1.5 Agent Management → 1.6 Composition + CLI**。当前仅授权独立 Tool Runtime；不实现完整模型—工具—模型循环，也不自动接续 Phase 1.3。
+- 修改原因：Agent Loop 需要真实、可替换且可验证的 ToolExecutor；先建立工具注册、校验、执行与结果能力，再实现循环策略，保持 Loop/Engine 以及能力实现的职责分离。
+- 影响范围：当前阶段入口、Phase 1 索引、路线图、架构当前目录、工程规范、README 和未实现模块的阶段说明。新增 `docs/phase-1.md` 仅作为用户要求维护的阶段顺序索引，不复制完整方案；Phase 1.1 的 76 项历史验收原样保留。
+- 依据：用户于 2026-11-22 提供的《Phase 1.2 Tool Runtime 开发任务书》及明确实施要求；本次未改变整体架构层级。
+- 现行规范：[Phase 1 索引](phase-1.md)、[Phase 1.2](phase-1.2.md)、[路线图](roadmap.md)、[架构](architecture.md)。
+
+### 2026-11-22 — 建立工具公共契约、严格执行与轻量模型桥接
+
+- 主题 ID：`tool.contracts-and-execution`
+- 变更前：Model System 已能生成工具调用、传递工具结果，但模型模块不负责参数 Schema 校验或工具实际执行；尚无独立 Registry/Executor。
+- 变更后：Harness 定义工具声明、Handler、Registry、Executor、结果与执行控制异常；Runtime 提供进程内 DefaultToolRegistry/DefaultToolExecutor、Ajv 8 的 draft-07 严格输入校验、稳定注册快照、并发隔离和两个轻量 Model Bridge。Schema 不补默认值、不转换类型、不删除字段，业务错误返回 ToolResult，取消/超时抛出 ToolExecutionError。
+- 修改原因：复用已完成的 Model 和 Logging 基线，为下一阶段 Loop 提供可直接使用的工具执行机制，同时明确注册变化、取消和潜在副作用的边界。
+- 设计取舍：声明防御性复制、执行时固定一次快照；协作式取消不承诺强制终止或副作用回滚，无自动重试、全局队列、资源锁或 Sandbox。模型桥接复用实际 ModelToolDefinition、ModelToolCall、ToolResultMessage，不修改 ModelClient 公共契约，不调用模型或执行循环。
+- 影响范围：Harness Tool Contracts、Runtime Tool、公共导出、Schema 依赖、离线契约/注册/校验/执行/并发/桥接测试、统一日志和模块文档；其他业务模块仍未实现。
+- 模块记录：[Harness](../src/harness/changes.md)、[Tool Contracts](../src/harness/contracts/tool/changes.md)、[Runtime](../src/runtime/changes.md)、[Runtime Tool](../src/runtime/tool/changes.md)。
+- 实际验收：2026-11-22，类型检查、lint（0 警告）、全仓格式检查、构建及离线测试全部通过；109 项通过、0 失败、0 跳过（既有 76 项 + Tool 33 项）。Model 源码与公共契约未改的差异检查通过；命令、构成和验证边界见 [Phase 1.2 验收记录](phase-1.2.md#实际验收记录)。
+- 现行规范：[Tool Contracts](../src/harness/contracts/tool/README.md)、[Runtime Tool](../src/runtime/tool/README.md)、[工程规范](conventions.md)。

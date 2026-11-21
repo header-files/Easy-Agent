@@ -2,9 +2,9 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Phase 0 与 Logging 基线已完成，当前交付 Phase 1.1 Model System。**
+**项目状态：Phase 0、Logging 与 Phase 1.1 Model System 已完成，当前交付 Phase 1.2 Tool Runtime。**
 
-当前提供统一 ModelClient 契约和 OpenAI-compatible Chat Completions Adapter，支持非流式/流式文本、Tool Calling、参数映射、取消/超时、单实例并发及统一生命周期日志。**Agent Loop、Session、工具执行和 CLI 交互尚未实现。** 当前范围和实际验收结果见 [Phase 1.1](docs/phase-1.1.md)，工程历史验收见 [Phase 0](docs/phase-0.md)。
+Model System 提供统一 ModelClient 与 OpenAI-compatible Chat Completions；本阶段提供独立 ToolRegistry/ToolExecutor，完成本地工具注册、严格参数校验、执行、结果转换、取消/超时及并发隔离。**Agent Loop、完整模型—工具—模型循环、Session、Engine 和 CLI 交互尚未实现。** 当前范围和实际验收见 [Phase 1.2](docs/phase-1.2.md)，模型历史验收见 [Phase 1.1](docs/phase-1.1.md)。
 
 ## 产品定位
 
@@ -24,14 +24,14 @@ Easy Agent 首先是一个能够直接使用的 Agent 产品，同时为开发�
 
 | 使用方式 | 目标能力                     | 预计阶段         |
 | -------- | ---------------------------- | ---------------- |
-| CLI      | 配置模型、连续输入、接收回复 | 后续 Phase 1     |
+| CLI      | 配置模型、连续输入、接收回复 | Phase 1.6        |
 | SDK      | 开发者在应用中调用 Agent     | Phase 2 逐步完善 |
 | HTTP API | 远程交互及 SSE 流式输出      | Phase 2          |
 | Web UI   | 可视化交互                   | 后续阶段         |
 
 ## 工程使用
 
-开发环境使用 **Node.js 26.x LTS 与 npm**；`.nvmrc` 指定 Node.js 26，`package.json` 限定 `>=26.0.0 <27`。工程为单一私有 npm 包，采用 ESM；Logging 使用 Pino 运行时依赖，工程工具保留为开发依赖。
+开发环境使用 **Node.js 26.x LTS 与 npm**；`.nvmrc` 指定 Node.js 26，`package.json` 限定 `>=26.0.0 <27`。工程为单一私有 npm 包，采用 ESM；Logging 使用 Pino、Tool Schema 校验使用 Ajv 运行时依赖，工程工具保留为开发依赖。
 
 使用锁文件安装并执行工程检查：
 
@@ -53,7 +53,7 @@ npm test
 | `npm run build`        | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
 | `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
-`src/index.ts` 导出 Logger/createLogger、ModelClient 相关契约、ModelError 和 OpenAICompatibleModelClient。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离及日志安全。该私有包尚未作为 Agent SDK 发布。
+`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor 和两个 Model Bridge。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge 及日志安全。该私有包尚未作为 Agent SDK 发布。
 
 安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。Provider 配置通过实例构造参数显式传入；不自动读取 `.env`，没有 CLI 对话命令。
 
@@ -110,7 +110,48 @@ ModelClient 默认使用统一 Logger，也可以通过 `logger` 配置注入同
 
 生成参数统一位于 `parameters`：maxOutputTokens 默认映射 max_completion_tokens，可通过实例配置 maxTokensField 选择 max_tokens；其他扩展字段保留原名和值。核心字段覆盖、重复 token 限制配置和已知不支持的能力会明确报错。
 
-同一实例可并发调用 generate/stream；每个调用独立处理取消、超时、文本和工具增量。Tool Calling 只返回模型提出的调用数据，参数保留原始字符串；工具实际执行仍待后续阶段。接口细则见 [模型公共契约](src/harness/contracts/model/README.md)，配置、错误、工具结果表示与兼容边界见 [Runtime Model](src/runtime/model/README.md)。
+同一实例可并发调用 generate/stream；每个调用独立处理取消、超时、文本和工具增量。Tool Calling 只返回模型提出的调用数据，参数保留原始字符串；工具实际执行由独立 ToolExecutor 负责，模型—工具循环策略留到 Phase 1.3。接口细则见 [模型公共契约](src/harness/contracts/model/README.md)，配置、错误、工具结果表示与兼容边界见 [Runtime Model](src/runtime/model/README.md)。
+
+## Tool Runtime 使用
+
+工具声明与函数分开注册；可复用 Registry/Executor 处理多个调用：
+
+```javascript
+import {
+  DefaultToolRegistry,
+  DefaultToolExecutor,
+  toModelToolDefinition,
+  toToolResultMessage,
+} from './dist/index.js';
+
+const registry = new DefaultToolRegistry();
+registry.register(
+  {
+    name: 'greet',
+    description: 'Return a greeting',
+    parameters: {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  (args) => ({ content: `Hello, ${args.name}` }),
+);
+
+const definitions = registry.list().map(toModelToolDefinition);
+const executor = new DefaultToolExecutor(registry);
+const result = await executor.execute({
+  id: 'call_001',
+  name: 'greet',
+  argumentsJson: '{"name":"Easy Agent"}',
+});
+const message = toToolResultMessage(result);
+```
+
+Schema 校验不补默认值、不转换类型、不删除字段；失败时 Handler 不执行。业务错误返回 ToolResult，取消/超时抛出 ToolExecutionError。注销工具只影响后续查找，已开始调用继续使用其快照；Executor 不自动重试，也不承诺取消后回滚副作用。
+
+`definitions` 和 `message` 可由后续调用方组织为模型数据，本示例不调用模型或实现 Loop。配置、Schema 支持、日志与并发边界见 [Runtime Tool](src/runtime/tool/README.md)，接口细则见 [Tool Contracts](src/harness/contracts/tool/README.md)。
 
 ## 当前目录
 
@@ -127,12 +168,15 @@ easy-agent/
 │   ├── application/               # 仅 README.md / changes.md
 │   ├── agent/                     # 仅 README.md / changes.md
 │   ├── execution/                 # 仅 README.md / changes.md
-│   ├── harness/contracts/model/   # 公共模型契约与就近文档
+│   ├── harness/contracts/
+│   │   ├── model/                 # 公共模型契约与就近文档
+│   │   └── tool/                  # 公共工具契约与就近文档
 │   ├── runtime/
 │   │   ├── logging/               # Logger 门面、Pino 适配与就近文档
-│   │   └── model/                 # Chat Completions Adapter 与就近文档
+│   │   ├── model/                 # Chat Completions Adapter 与就近文档
+│   │   └── tool/                  # Registry/Executor、Schema 校验和桥接
 │   └── composition/               # 仅 README.md / changes.md
-└── tests/                         # 工程 smoke、Logging、契约、Adapter、并发及日志集成
+└── tests/                         # 工程、Logging、Model、Tool 的离线验证
 ```
 
 六个一级模块均有 README/changes。安装目录 `node_modules/` 和构建输出 `dist/` 已忽略，不纳入版本控制；未来能力随实际开发创建。
@@ -158,12 +202,14 @@ easy-agent/
 - [技术栈、代码与文档规范](docs/conventions.md)
 - [Phase 0：已完成的工程基线与验收](docs/phase-0.md)
 - [Runtime Logging：统一日志基础设施](src/runtime/logging/README.md)
-- [Phase 1.1：当前 Model System 范围与验收](docs/phase-1.1.md)
+- [Phase 1：阶段顺序索引](docs/phase-1.md)
+- [Phase 1.1：已完成 Model System 与历史验收](docs/phase-1.1.md)
+- [Phase 1.2：当前 Tool Runtime 范围与验收](docs/phase-1.2.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前执行范围以 `docs/phase-1.1.md` 为准。** 只完成本阶段，不自动进入 Phase 1.2；`docs/roadmap.md` 不是自动接续开发清单。
+**当前执行范围以 `docs/phase-1.2.md` 为准。** 只完成本阶段，不自动进入 Phase 1.3；`docs/roadmap.md` 不是自动接续开发清单。
 
 ## 文档维护原则
 

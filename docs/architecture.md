@@ -36,7 +36,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 这张图是**职责组织图，不是执行请求调用链**。Harness 不是 Execution 与 Runtime 之间的必经中间件；Composition / Bootstrap 负责装配，不负责运行用户任务。各模块通过必要的契约直接协作。
 
-**Phase 0 与 Logging 基线已完成；当前 Phase 1.1 落地 Harness Model Contracts 与带统一生命周期日志的 Runtime Model System，其他业务组件仍为后续设计。** 工程基线与历史验收见 [Phase 0](phase-0.md)，当前范围见 [Phase 1.1](phase-1.1.md)。
+**Phase 0、Logging 和 Phase 1.1 Model System 已完成；当前 Phase 1.2 落地 Harness Tool Contracts 与 Runtime Tool System，其他业务组件仍为后续设计。** 工程基线与历史验收见 [Phase 0](phase-0.md)，当前范围见 [Phase 1.2](phase-1.2.md)。
 
 ## 2. 核心模块职责
 
@@ -60,15 +60,15 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 ### 2.3 Execution
 
-保留 **Agent Loop（策略）与 Execution Engine（机制）分离**。Loop 决定下一步动作和终止；Engine 负责通用执行生命周期、控制与资源清理。默认 Basic Loop 属于后续 Phase 1.2，当前不实现。
+保留 **Agent Loop（策略）与 Execution Engine（机制）分离**。Loop 决定下一步动作和终止；Engine 负责通用执行生命周期、控制与资源清理。Basic Loop 属于后续 Phase 1.3，Execution Engine 属于 Phase 1.4，当前均不实现。
 
 ### 2.4 Harness
 
-提供 Contracts、Context Management、Extension System、Execution Services、Governance 等横向支撑，**不是第五条纵向业务调用链**。当前模型契约集中在 `src/harness/contracts/model/`；其他契约随真实能力落地，不建立巨型接口包。
+提供 Contracts、Context Management、Extension System、Execution Services、Governance 等横向支撑，**不是第五条纵向业务调用链**。模型与工具契约分别位于 `src/harness/contracts/model/`、`src/harness/contracts/tool/`；其他契约随真实能力落地，不建立巨型接口包。
 
 ### 2.5 Runtime
 
-具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions，并复用 Logger 记录生命周期元数据，调用方可直接使用该实例。
+具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions，并复用 Logger 记录生命周期元数据，调用方可直接使用该实例。`src/runtime/tool/` 通过 ToolRegistry/ToolExecutor 契约提供独立工具注册、校验、执行与轻量模型数据桥接；模型与工具不自行互相调用，循环策略属于后续 Agent Loop。
 
 ### 2.6 Composition / Bootstrap
 
@@ -85,7 +85,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 ## 4. 执行实体与控制模型（未来设计基线）
 
-这些概念用于明确后续设计方向，**Phase 1.1 不实现相关类或状态机**。
+这些概念用于明确后续设计方向，**Phase 1.2 不实现相关类或状态机**。
 
 | 概念      | 定位                               |
 | --------- | ---------------------------------- |
@@ -105,11 +105,11 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 - **Approval**：独立实体，通过引用关联 Step，审批通过不代表操作已成功执行。
 - **Recovery**：基于已有事实核实和恢复，不改写已经发生的历史记录。
 
-具体状态机、审批协议、事件事务边界等以后在相应模块开发时讨论，**不在 Phase 1.1 编写详细实现**。
+具体状态机、审批协议、事件事务边界等以后在相应模块开发时讨论，**不在 Phase 1.2 编写详细实现**。
 
-## 5. Phase 1.1：当前工程目录与模型边界
+## 5. Phase 1.2：当前工程目录与能力边界
 
-Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架。在既有 Runtime Logging 基础上，当前在 Harness 与 Runtime 中落地 Model System：
+Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架。Logging 和 Model System 已形成可复用基线；当前在 Harness 与 Runtime 中增加 Tool Runtime：
 
 ```text
 easy-agent/
@@ -118,26 +118,31 @@ easy-agent/
 ├── docs/
 │   ├── AGENT.md / architecture.md / conventions.md
 │   ├── phase-0.md                 # 已完成的工程基线与历史验收
-│   ├── phase-1.1.md               # 当前 Model System 范围与验收
+│   ├── phase-1.md                 # Phase 1 阶段顺序索引
+│   ├── phase-1.1.md               # 已完成 Model System 基线与历史验收
+│   ├── phase-1.2.md               # 当前 Tool Runtime 范围与验收
 │   └── roadmap.md / changes.md
 ├── package.json / package-lock.json
 ├── tsconfig.json / tsconfig.build.json
 ├── eslint.config.js / .prettierrc.json / .prettierignore
 ├── .gitignore / .nvmrc
 ├── src/
-│   ├── index.ts                   # Logger 门面、公共模型契约和 Adapter 导出
+│   ├── index.ts                   # Logger、模型/工具公共契约与组件导出
 │   ├── application/               # 仅 README.md / changes.md
 │   ├── agent/                     # 仅 README.md / changes.md
 │   ├── execution/                 # 仅 README.md / changes.md
 │   ├── harness/
 │   │   ├── README.md / changes.md
-│   │   └── contracts/model/       # 公共契约、README.md / changes.md
+│   │   └── contracts/
+│   │       ├── model/             # 既有模型公共契约与就近文档
+│   │       └── tool/              # 当前工具公共契约与就近文档
 │   ├── runtime/
 │   │   ├── README.md / changes.md
 │   │   ├── logging/               # 既有 Logger 门面、Pino 适配及就近文档
-│   │   └── model/                 # Adapter、README.md / changes.md
+│   │   ├── model/                 # 既有模型 Adapter 与就近文档
+│   │   └── tool/                  # Registry/Executor、Schema 校验与桥接
 │   └── composition/               # 仅 README.md / changes.md
-└── tests/                         # ESM smoke、Logging、契约、Adapter、并发及日志集成
+└── tests/                         # 工程、Logging、Model、Tool 的离线验证
 ```
 
 - `ModelClient.generate()` 返回完整响应，`stream()` 返回异步事件流。公共契约不依赖 OpenAI SDK，不引入 Session、Turn 或执行实体。
@@ -145,15 +150,17 @@ easy-agent/
 - ModelClient 是可复用实例。只共享固定配置及 HTTP 能力；每次调用独立持有响应、文本/工具增量缓存、AbortController 与超时状态，不使用全局锁串行化请求。
 - ModelClient 使用既有 Logger 门面，默认提供统一日志并支持构造时注入。生命周期日志只记录诊断元数据，日志不成为响应事件或消息历史，也不泄露模型消息、工具参数和认证配置。
 - 模型取消与超时属于单次模型请求；不等同于 Agent Execution 的取消、排队或恢复。
-- 当前允许直接创建 Adapter 进行调用，不实现完整 Composition/Bootstrap。后续 Loop 依赖 ModelClient 契约，由装配边界选择具体实现。
-- `node_modules/` 和 `dist/` 为忽略的生成目录；私有单包结构、ESM 与工程工具链保持不变。没有 CLI 聊天、默认 Agent 或工具实际执行。
+- ToolRegistry 保存防御性复制的声明；ToolExecutor 获取一次注册快照、严格校验对象参数并执行 Handler。注销或重注册不改变已开始的调用，各调用取消/超时独立，无全局锁或自动重试。
+- Tool 业务失败返回 ToolResult，取消/超时抛出 ToolExecutionError；协作式取消不承诺终止任意代码或回滚副作用。Model Bridge 复用既有模型类型，不调用模型或执行循环。
+- 当前允许直接创建 Adapter、Registry/Executor 进行调用，不实现完整 Composition/Bootstrap。后续 Loop 依赖 ModelClient 契约，由装配边界选择具体实现。
+- `node_modules/` 和 `dist/` 为忽略的生成目录；私有单包结构、ESM 与工程工具链保持不变。没有 CLI 聊天、默认 Agent 或完整模型—工具—模型循环。
 - 能力子模块随真实实现创建本地 README/changes，不为其他未来能力建立空目录或占位接口。
 
-Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。具体模型协议和使用以 [Harness Model Contracts](../src/harness/contracts/model/README.md)、[Runtime Model](../src/runtime/model/README.md) 为准。
+Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。模型细则见 [Model Contracts](../src/harness/contracts/model/README.md) / [Runtime Model](../src/runtime/model/README.md)，工具细则见 [Tool Contracts](../src/harness/contracts/tool/README.md) / [Runtime Tool](../src/runtime/tool/README.md)。
 
-## 6. Phase 1.2 及后续：未来最小 Agent 的建议源码组织
+## 6. Phase 1.3 及后续：未来最小 Agent 的建议源码组织
 
-以下是 **未来 Agent 闭环的建议源码组织，不是 Phase 1.1 的创建任务**。已有模型模块沿用上一节结构，其余路径随实际需求确认：
+以下是 **未来 Agent 闭环的建议源码组织，不是 Phase 1.2 的创建任务**。已有模型和工具模块沿用上一节结构，其余路径随实际需求确认：
 
 ```text
  src/
@@ -235,7 +242,7 @@ Persistence、Event、Extension、Governance 为跨模块能力或能力域，�
 - `composition` 负责集中选择和装配默认实现，可依赖其装配所需的实现。
 - 读取环境变量及密钥仅发生在明确的配置边界，核心 Loop 不读取环境配置。
 
-**除当前已实现的模型契约与 Adapter 外，本章节不授权创建后续组件。**
+**除当前模型与工具契约/实现外，本章节不授权创建后续组件。**
 
 ## 8. 设计判断与后续更新
 

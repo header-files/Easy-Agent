@@ -37,3 +37,13 @@
 - 影响范围：本模块公共接口、契约测试和模块文档；不引入 AgentLoop、Session 或 Harness 请求代理。
 - 依据/验证：用户提供的 Phase 1.1 技术方案；`tests/model-contracts.test.ts` 验证联合类型、工具参数保真、统一/扩展参数、替代实现、返回值及 ModelError，类型检查覆盖静态约束。
 - 现行说明：[Model Contracts](contracts/model/README.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。
+
+### 2026-11-22 — 引入 Phase 1.2 工具公共契约
+
+- 主题 ID：`harness.tool-contracts`
+- 变更前：Harness 已提供 Phase 1.1 Model Contracts，工具调用仍只有模型协议，没有工具注册与执行的公共接口。
+- 变更后：新增 `contracts/tool`，定义五组核心契约、执行上下文与选项；ToolCall 与已有 ModelToolCall 结构兼容，普通工具业务失败返回 ToolResult，取消/超时抛出独立 ToolExecutionError。
+- 修改原因：用户明确授权先实施 Tool Runtime，再由 Phase 1.3 Agent Loop 使用真实工具执行能力。
+- 影响范围：工具公共接口、契约测试、本地文档和 Harness 父模块说明；未修改 Phase 1.1 Model Contracts，未引入 Agent Loop 或模型—工具循环。
+- 依据/验证：用户提供的 Phase 1.2 开发任务书；独立严格类型检查通过，`node --test tests/tool-contracts.test.ts` 6 项通过，定向 ESLint/格式检查通过。基础契约验收完成后才开始 Runtime 编码。
+- 现行说明：[Tool Contracts](contracts/tool/README.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。

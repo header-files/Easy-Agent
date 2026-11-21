@@ -4,6 +4,8 @@
 >
 > 交付状态：**2026-11-21 已完成 Phase 1.1 实现与离线工程验收**。76 项测试通过、0 失败、0 跳过；未进行真实 Provider/API 调用验证，不自动接续 Phase 1.2。
 
+> 本文件保留 **Phase 1.1 的实现基线与 76 项历史验收**。2026-11-22 用户已授权 [Phase 1.2 Tool Runtime](phase-1.2.md)，当前阶段见该文件；以下非目标针对 Model System 的职责和当时阶段，不表示独立 Tool Runtime 仍属未实现能力。Model 不执行工具，Tool Runtime 通过桥接复用其数据类型；完整循环仍待 Phase 1.3。
+
 ## 1. 目标与职责
 
 建立能够由后续 Agent Loop 稳定依赖、可替换 Provider、支持并发的统一模型组件：

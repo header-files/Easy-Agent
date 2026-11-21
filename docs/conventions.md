@@ -1,6 +1,6 @@
 # Easy Agent 技术栈、工程与文档规范
 
-> 当前阶段：**Phase 1.1（Model System）**。Phase 0 与统一 Logging 基线继续适用；当前功能边界见 [phase-1.1.md](phase-1.1.md)，不自动进入后续阶段。
+> 当前阶段：**Phase 1.2（Tool Runtime）**。Phase 0 与统一 Logging 基线继续适用；Phase 1.1 Model 基线继续适用，当前功能边界见 [phase-1.2.md](phase-1.2.md)，不自动进入后续阶段。
 
 ## 1. 技术基线
 
@@ -17,8 +17,9 @@
 | 检查         | `npm run typecheck`、`npm run lint`、`npm run format:check`                     |
 | 格式修复     | `npm run format`；检查代码、工程配置和 Markdown 文档                            |
 | 测试         | `npm test`；`pretest` 自动构建，Node.js 内置 `node:test` 执行 `tests/*.test.ts` |
-| 交互入口     | CLI、Agent SDK、HTTP API、Web UI 等为未来规划；当前仅提供模型组件调用入口       |
+| 交互入口     | CLI、Agent SDK、HTTP API、Web UI 等为未来规划；当前提供模型与工具组件入口       |
 | 模型         | Phase 1.1 实现 ModelClient 与 OpenAI-compatible Chat Completions Adapter        |
+| 工具         | Phase 1.2 ToolRegistry/ToolExecutor，Ajv 8 的 draft-07 严格输入校验             |
 | 日志         | Runtime Logging 统一门面，Pino 10.4.0 输出结构化 JSON 到 stderr                 |
 | 数据存储     | 当前无业务持久化；未来依需求采用简单本地方案起步                                |
 
@@ -27,7 +28,7 @@
 ### 1.1 工具链配置与执行范围
 
 - Node.js 26 的 LTS 状态依据 [Node.js 官方发布计划](https://github.com/nodejs/Release#release-schedule)。当前只声明支持 26.x，不将其他主版本的兼容性视为已验收。
-- Pino 为日志运行时依赖，其余工程工具为开发依赖；直接依赖固定具体版本，传递依赖由 npm 锁文件固定。TypeScript 6.0.3 位于当前 typescript-eslint 支持范围内，不单独追随 TypeScript 最新主版本。
+- Pino 为日志、Ajv 为 Tool JSON Schema 校验的运行时依赖，其余工程工具为开发依赖；直接依赖固定具体版本，传递依赖由 npm 锁文件固定。TypeScript 6.0.3 位于当前 typescript-eslint 支持范围内，不单独追随 TypeScript 最新主版本。
 - `tsconfig.json` 对 `src/**/*.ts`、`tests/**/*.ts` 统一启用严格检查且默认不输出文件。`tsconfig.build.json` 继承同一基线，仅构建源码；`rootDir` 为 `src`，`outDir` 为 `dist`。
 - `erasableSyntaxOnly` 限制为 Node.js 原生类型擦除可处理的 TypeScript 语法；测试由 Node.js 直接运行，类型正确性仍由 `npm run typecheck` 验证。
 - ESM 相对导入使用显式扩展名；源码或测试引用 TypeScript 文件时使用 `.ts`，编译通过 `rewriteRelativeImportExtensions` 将输出中的相对 TypeScript 扩展名改写为 JavaScript 扩展名。不引入路径别名或额外运行加载器。
@@ -38,10 +39,10 @@
 
 1. **职责优先**：Application、Agent、Execution、Runtime 为核心运行职责层；Harness 横向支撑，Composition 装配。
 2. **按一级职责模块落地文档骨架**：Phase 0 建立六个一级模块目录，各有有意义的 `README.md` 和 `changes.md`。业务代码仍按实际功能逐步落地，未实现的子能力不建空源码。
-3. **避免无用抽象**：ModelClient 由当前 Adapter 实现并通过离线测试验证；不提前创建 AgentLoop、万能 Runtime、伪 DI 容器或基础类层级。
-4. **尽量少的入口文件**：`src/index.ts` 导出 Logger 门面、公共模型契约及 Adapter；保留模块边界，不把模型组件调用等同于可运行 Agent。
+3. **避免无用抽象**：ModelClient 与 ToolExecutor/Registry 由当前 Runtime 实现并通过离线测试验证；不提前创建 AgentLoop、万能 Runtime、伪 DI 容器或基础类层级。
+4. **尽量少的入口文件**：`src/index.ts` 导出 Logger 门面、公共模型/工具契约和已实现组件；保留模块边界，不把模型组件调用等同于可运行 Agent。
 5. **避免机械 barrel 导出**：不是每个目录都必须有 `index.ts`。
-6. **保持内部边界清晰**：Harness 定义模型公共契约，Runtime 实现；公共契约不暴露具体 Provider SDK 类型。
+6. **保持内部边界清晰**：Harness 定义模型/工具公共契约，Runtime 实现；公共契约不暴露具体 Provider SDK 类型。
 7. **不提前规定内部状态机/持久化协议**：以对应功能阶段的代码和测试为依据。
 
 ## 3. 工程安全与配置
@@ -60,8 +61,17 @@
 - 错误放在结构化字段中，由日志实现归一并处理；不把原始 Provider 正文、认证头、环境配置或完整错误载荷作为安全日志。
 - 敏感字段和显式配置的敏感值通过日志实现处理，但自动处理不替代调用方最小化记录的责任。禁止主动记录密钥、Token、密码、认证信息或敏感输入正文；不宣称能识别任意文本中所有未知秘密。
 - child bindings 可承载未来调用方提供的关联标识，当前不定义 trace/span 传播协议，也不借日志引入 Session 或 Execution 实体。
-- ModelClient 生命周期日志复用此门面，只记录白名单诊断元数据和归一错误分类；不记录完整 messages、ToolCall arguments、请求/响应正文、Header、URL、密钥或原始网络错误。具体事件与字段见 [Runtime Model](../src/runtime/model/README.md)。
+- ModelClient/ToolExecutor 生命周期日志复用此门面，只记录白名单诊断元数据和归一错误分类；不记录完整 messages、ToolCall arguments、请求/响应正文、Header、URL、密钥或原始网络错误。具体事件与字段见 [Runtime Model](../src/runtime/model/README.md) 和 [Runtime Tool](../src/runtime/tool/README.md)。
 - 当前不提供文件轮转、远端采集、独立日志服务、Session 事件存储或完整 tracing；需要这些能力时另行设计和授权。
+
+### 3.2 Tool 参数与执行规范
+
+- 注册时校验工具 Schema，执行时解析 argumentsJson 并确认参数为对象，再按该工具 Schema 校验；失败不得调用 Handler。
+- 严格输入不自动填默认值、不转换类型、不移除字段；额外字段是否允许由 Schema 决定。当前方言与限制见 [Runtime Tool](../src/runtime/tool/README.md)。
+- 业务错误返回统一 ToolResult；取消/超时抛出 ToolExecutionError，不伪装成功，不自动重试含潜在副作用的工具。
+- 工具声明使用防御性复制，在途调用固定本次注册快照；实例级不保存“当前调用”可变状态，不用全局锁串行化。
+- AbortSignal 是协作机制；Executor 停止等待不代表底层操作已终止或副作用已回滚。本阶段不实现进程隔离、Sandbox、资源锁或补偿事务。
+- Model Bridge 复用已有模型公共契约，不调用 ModelClient，也不实现 Agent Loop。
 
 ## 4. 测试与验收规范
 
@@ -70,6 +80,7 @@
 - 当前 `tests/smoke.test.ts` 验证 `src/index.ts` 的 ESM 导入，以及 `dist/index.js` 能在 Node.js `--no-strip-types` 模式加载；后者检查构建结果无需 TypeScript 运行支持。`npm test` 通过 `pretest` 先构建，避免依赖手动准备的旧产物。
 - 测试不得依赖模型 API Key、公网、数据库或后台服务。
 - Phase 1.1 增加契约、协议映射、流式组装、错误/取消/超时、并发隔离及生命周期日志安全测试；必须验证真实 Adapter 逻辑。Fake ModelClient 仅用于公共契约替换验证，不为未实现的 Loop 编造测试。
+- Phase 1.2 增加工具契约、注册/注销、Schema 严格校验、同步/异步执行、取消/超时、并发和在途快照隔离、Model Bridge 与日志安全测试；通过可控异步屏障验证真实交错。
 - 如果命令由于客观限制没有执行，应在交付说明中明确列出，而非宣称通过。
 - 后续业务开发应为有意义的逻辑提供相应离线单元或集成测试，真实模型烟测只能作为可选验证。
 
@@ -92,7 +103,9 @@
 | `docs/architecture.md`          | **现行有效**架构、职责、目录组织                         |
 | `docs/conventions.md`           | 技术栈、测试、安全、文档与变更规范                       |
 | `docs/phase-0.md`               | 已完成的工程初始化基线与历史验收                         |
-| `docs/phase-1.1.md`             | **当前** Model System 任务与验收                         |
+| `docs/phase-1.1.md`             | 已完成 Model System 基线与历史验收                       |
+| `docs/phase-1.2.md`             | **当前** Tool Runtime 任务与验收                         |
+| `docs/phase-1.md`               | Phase 1 阶段顺序索引                                     |
 | `src/runtime/logging/README.md` | 已完成 Logging 接口、配置与安全边界                      |
 | `docs/roadmap.md`               | 后续扩展目标，非当前任务清单                             |
 | `docs/changes.md`               | **项目级**历史：整体架构、共享约定与跨模块决定           |
@@ -145,6 +158,6 @@
 
 - 两种工具统一使用 `AGENTS.md`、`docs/AGENT.md`、阶段文件和架构文件，不维护互相冲突的独立业务规范。
 - 接到模块级开发任务后，应**先定位模块，再读取最接近该模块的 `README.md` 和 `changes.md`**；只有跨模块需求才扩大阅读范围。
-- 开始工作前先读 `docs/phase-1.1.md`，并按需参考已完成的 `docs/phase-0.md` 工程基线；只有用户明确切换阶段，才能开展 Phase 1.2 等后续任务。
+- 开始工作前先读 `docs/phase-1.2.md`，并按需参考已完成的 Phase 0、Logging 和 Model 基线；只有用户明确切换阶段，才能开展 Phase 1.3 等后续任务。
 - 一个任务只做已授权的变更，实际运行对应验证命令，不虚报结果。
 - 因真实代码问题必须改变设计时，说明原因、影响、备选方案和验证依据；确认后**同步更新模块级现行文档与本地历史记录**，全局/跨模块问题再维护项目级记录。
