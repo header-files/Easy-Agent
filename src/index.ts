@@ -1,2 +1,8 @@
-// Phase 0 仅提供可构建的 ESM 入口；业务能力随后续阶段实现。
-export {};
+export { createLogger } from './runtime/logging/index.ts';
+export type {
+  LogDestination,
+  LogFields,
+  Logger,
+  LoggerOptions,
+  LogLevel,
+} from './runtime/logging/index.ts';

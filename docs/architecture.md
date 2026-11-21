@@ -36,7 +36,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 这张图是**职责组织图，不是执行请求调用链**。Harness 不是 Execution 与 Runtime 之间的必经中间件；Composition / Bootstrap 负责装配，不负责运行用户任务。各模块通过必要的契约直接协作。
 
-**当前 Phase 0 只建立工程和目录骨架，图示业务组件均不要求有实际实现。**
+**Phase 0 工程基线已完成；当前仅补充 Runtime Logging 基础设施，图示 Agent 业务组件仍未实现，Phase 1 尚未启用。**
 
 ## 2. 核心模块职责
 
@@ -68,7 +68,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 ### 2.5 Runtime
 
-具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。
+具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。Logging 是当前落地的公共运行基础设施，位于 `src/runtime/logging/`；通过统一 Logger 门面供各模块使用，不增加架构层级。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。
 
 ### 2.6 Composition / Bootstrap
 
@@ -107,9 +107,9 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 具体状态机、审批协议、事件事务边界等以后在相应模块开发时讨论，**不在 Phase 0 编写详细实现**。
 
-## 5. Phase 0：当前工程目录
+## 5. 当前工程目录：Phase 0 基线与 Logging
 
-Phase 0 建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架。当前交付结构：
+Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架；当前在 Runtime 中增加 Logging 能力，未创建 Agent 业务组件。当前交付结构：
 
 ```text
  easy-agent/
@@ -122,8 +122,7 @@ Phase 0 建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块
  │   ├── AGENT.md                   # Coding Agent 总指引
  │   ├── architecture.md            # 当前架构及目标目录（本文）
  │   ├── conventions.md             # 技术栈、工程与文档规范
- │   ├── phase-0.md                 # 当前任务范围与验收
- │   ├── phase-1.md                 # 后续最小 Agent 计划
+ │   ├── phase-0.md                 # 已完成的工程基线与历史验收
  │   ├── roadmap.md                 # 后续能力规划
  │   └── changes.md                 # 变更历史、原因与时间线
  ├── package.json
@@ -136,7 +135,7 @@ Phase 0 建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块
  ├── .gitignore
  ├── .nvmrc                         # Node.js 26
  ├── src/
- │   ├── index.ts                   # 最小编译入口，仅 export {}，无业务逻辑
+ │   ├── index.ts                   # 仅导出已实现的 Logging 能力
  │   ├── application/              # 用户入口职责模块：仅文档
  │   │   ├── README.md
  │   │   └── changes.md
@@ -149,14 +148,16 @@ Phase 0 建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块
  │   ├── harness/                  # 横向契约/支撑模块：仅文档
  │   │   ├── README.md
  │   │   └── changes.md
- │   ├── runtime/                  # 能力域运行时模块：仅文档
+ │   ├── runtime/                  # Logging 基础设施已落地，其他能力未实现
  │   │   ├── README.md
- │   │   └── changes.md
+ │   │   ├── changes.md
+ │   │   └── logging/              # Logger 门面、Pino 适配及本地 README/changes
  │   └── composition/              # 组件装配模块：仅文档
  │       ├── README.md
  │       └── changes.md
  └── tests/
-     └── smoke.test.ts              # 验证源码 ESM 导入与构建输出的 Node.js 加载
+     ├── smoke.test.ts              # 验证源码与构建输出加载
+     └── logging*.test.ts          # 统一日志离线验证
 ```
 
 说明：
@@ -166,7 +167,7 @@ Phase 0 建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块
 - 六个一级职责模块目录在 Phase 0 **实际创建且包含有效的 `README.md` 和 `changes.md`**；这是为了支持 Coding Agent 单模块开发，并非空占位源码。
 - 更深一层的能力子模块（如 `src/runtime/model/`）仍遵循按需落地原则：真正开始实现时，**随代码一同创建本地 README 与 changes**，不为所有未来能力提前建立空目录或空 TypeScript 接口。
 - `.env.example`、模型配置与 CLI 聊天命令随 Phase 1 实际实现再添加。
-- 只有 `src/index.ts` 和最小 smoke test 并不意味着 Agent 核心已经完成；README 必须准确标明状态。
+- 当前 Logging 的门面、配置与结构化 JSON 输出不代表 Agent 核心已经完成。接口和测试说明以 [Runtime Logging](../src/runtime/logging/README.md) 为准；文件轮转、远端服务与 trace 系统不在当前范围。
 
 ## 6. Phase 1：未来最小 Agent 的建议源码组织
 

@@ -2,9 +2,9 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Phase 0 工程初始化与架构骨架已完成并通过验收。后续阶段等待用户另行发起。**
+**项目状态：Phase 0 工程基线已完成；当前补充 Logging 基础设施，尚未启用 Phase 1 业务开发。**
 
-当前已建立 TypeScript / Node.js 工程配置、六个职责模块的文档骨架和基础离线 smoke test，**尚不提供可对话的 Agent、模型调用或 CLI 交互**。验收状态见 [Phase 0](docs/phase-0.md)；后续功能仍按阶段逐步实现。
+当前已建立 TypeScript / Node.js 工程、六个职责模块的文档骨架和基础离线验证；本次增加统一 Logger 门面与结构化日志能力，**尚不提供可对话的 Agent、模型调用或 CLI 交互**。工程历史验收见 [Phase 0](docs/phase-0.md)，当前范围见 [Coding Agent 工作说明](docs/AGENT.md)，日志接口与配置见 [Runtime Logging](src/runtime/logging/README.md)。
 
 ## 产品定位
 
@@ -31,7 +31,7 @@ Easy Agent 首先是一个能够直接使用的 Agent 产品，同时为开发�
 
 ## 当前阶段：仅面向开发的工程使用
 
-开发环境使用 **Node.js 26.x LTS 与 npm**；`.nvmrc` 指定 Node.js 26，`package.json` 限定 `>=26.0.0 <27`。工程为单一私有 npm 包，采用 ESM，没有运行时依赖。
+开发环境使用 **Node.js 26.x LTS 与 npm**；`.nvmrc` 指定 Node.js 26，`package.json` 限定 `>=26.0.0 <27`。工程为单一私有 npm 包，采用 ESM；Logging 使用 Pino 运行时依赖，工程工具保留为开发依赖。
 
 使用锁文件安装并执行工程检查：
 
@@ -51,13 +51,29 @@ npm test
 | `npm run format:check` | 使用 Prettier 检查代码、配置与文档格式                       |
 | `npm run format`       | 使用 Prettier 修复格式                                       |
 | `npm run build`        | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
-| `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行离线 smoke test |
+| `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
-smoke test 验证源码入口可作为 ESM 导入，以及构建入口 `dist/index.js` 可在关闭类型擦除的 Node.js 中加载；它不验证 Agent 业务功能。源码入口 `src/index.ts` 当前仅用于工程编译与导入检查，没有业务导出。
+smoke test 验证源码入口的 ESM 导入和构建入口 `dist/index.js` 的原生 JavaScript 加载。Logging 测试覆盖真实日志输出、级别过滤、模块子日志、错误与敏感信息处理；这些验证不代表 Agent 业务已经实现。
 
 安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。当前没有 `.env`、模型配置或 CLI 对话命令。
 
 Git 主分支为 `main`，远程 `origin` 为 `git@github.com:header-files/Easy-Agent.git`。工程版本与配置细则见 [工程规范](docs/conventions.md)。
+
+## Logging 使用
+
+构建后可从统一入口使用 Logger；运行日志默认以 JSON 输出到 stderr：
+
+```javascript
+import { createLogger } from './dist/index.js';
+
+const logger = createLogger({ module: 'application' });
+logger.info('组件已初始化', { component: 'example' });
+
+const workerLogger = logger.child('worker', { workerId: 'example' });
+workerLogger.debug('准备处理任务');
+```
+
+通过 `LOG_LEVEL` 或显式初始化配置控制日志级别；配置优先级、结构化错误与敏感信息处理规则见 [Runtime Logging](src/runtime/logging/README.md)。当前没有文件轮转、远端日志服务或 trace 系统。
 
 ## 当前目录
 
@@ -72,14 +88,14 @@ easy-agent/
 ├── README.md / docs/
 ├── src/
 │   ├── index.ts
-│   ├── application/   # 以下六模块均仅含 README.md 与 changes.md
+│   ├── application/   # 除 Runtime Logging 外，职责模块目前均仅有文档
 │   ├── agent/
 │   ├── execution/
 │   ├── harness/
 │   ├── runtime/
+│   │   └── logging/   # 统一 Logger、Pino 适配与就近 README/changes
 │   └── composition/
-└── tests/
-    └── smoke.test.ts
+└── tests/             # 工程 smoke 和 Logging 离线测试
 ```
 
 安装目录 `node_modules/` 和构建输出 `dist/` 均由工具生成，已忽略，不纳入版本控制。未来能力的子目录随实际实现创建。
@@ -103,13 +119,13 @@ easy-agent/
 - [Coding Agent 工作规范](docs/AGENT.md)
 - [系统架构与目标目录结构](docs/architecture.md)
 - [技术栈、代码与文档规范](docs/conventions.md)
-- [Phase 0：当前工程骨架任务与验收](docs/phase-0.md)
-- [Phase 1：后续最小可运行 Agent](docs/phase-1.md)
+- [Phase 0：已完成的工程基线与历史验收](docs/phase-0.md)
+- [Runtime Logging：当前日志能力](src/runtime/logging/README.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前执行范围唯一依据：`docs/phase-0.md`。** `docs/phase-1.md` 和 `docs/roadmap.md` 均不是 Coding Agent 可以擅自开展的待办清单。
+**当前只补充 Logging 基础设施，不自动进入 Phase 1。** 范围以 `docs/AGENT.md` 和 Logging 就近说明为准；`docs/phase-0.md` 保留工程基线，`docs/roadmap.md` 不是自动接续开发清单。
 
 ## 文档维护原则
 

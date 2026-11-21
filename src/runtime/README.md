@@ -19,15 +19,15 @@
 
 ## 当前实现状态
 
-**Phase 0：只有模块文档和目录归属，尚无本模块业务实现。** 本目录出现并不代表功能已实现。
+**Phase 0 工程基线上已增加 Logging 基础设施**，见 [`logging/README.md`](logging/README.md)。公共入口为 `logging/index.ts`，提供供应商无关的 Logger 和基于 Pino 的实现，支持四级结构化日志、错误信息、子 logger、环境级别、stderr 与脱敏。Model、Tool、MCP 等 Agent 业务能力尚未实现。
 
 ## 后续实现范围
 
-Phase 1：一个 OpenAI-compatible Model Provider；后续逐步增加其他能力域。
+Model 等业务能力等待后续阶段明确授权；当前只完成 Logging，不开启 Phase 1 或提前建立业务组件。
 
 ## 协作与边界
 
-通过所实现的能力契约为 Loop、Agent、Execution 等提供基础服务；具体接口待对应功能阶段确定。
+通过所实现的能力契约为 Loop、Agent、Execution 等提供基础服务；具体业务接口待对应功能阶段确定。Logging 是横向基础设施，调用方显式传入 Logger，不依赖全局容器。
 
 ## Coding Agent 开发须知
 
@@ -42,3 +42,9 @@ Phase 1：一个 OpenAI-compatible Model Provider；后续逐步增加其他能�
 - [工程与文档规范](../../docs/conventions.md)
 - [当前阶段范围](../../docs/phase-0.md)
 - [本模块变更时间线](changes.md)
+
+## Logging 入口与验证
+
+- [Logging 当前实现、配置与用法](logging/README.md)
+- [Logging 变更时间线](logging/changes.md)
+- `npm test` 执行 Logging 和工程 smoke 离线测试；完整检查命令见 [工程规范](../../docs/conventions.md)。

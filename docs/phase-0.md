@@ -1,10 +1,10 @@
-# Phase 0 — 工程初始化与架构骨架搭建（当前阶段）
+# Phase 0 — 工程初始化与架构骨架搭建（已完成的工程基线）
 
-> **当前唯一目标：建立结构清晰、规范可执行、可检查与可构建的 TypeScript / Node.js 项目。**
+> **Phase 0 目标：建立结构清晰、规范可执行、可检查与可构建的 TypeScript / Node.js 项目。**
 >
 > **本阶段不实现 Agent 业务功能，不以能和模型对话作为验收条件。**
 >
-> **交付状态：2026-11-20 已完成本阶段工程验收；未进入 Phase 1。**
+> **历史交付状态：2026-11-20 已完成本阶段工程验收。当前按用户要求补充 Logging 基础设施，范围见 [Coding Agent 工作说明](AGENT.md) 和 [Runtime Logging](../src/runtime/logging/README.md)；尚未进入 Phase 1 业务开发。以下记录描述 Phase 0 当时范围。**
 
 ## 1. 阶段边界
 
@@ -160,4 +160,4 @@
 
 ## 6. Phase 1 启动条件
 
-完成并验收 Phase 0 后，由用户另行明确发起 Phase 1。`docs/phase-1.md` 的存在不等于授权 Coding Agent 自动接续开发。
+完成并验收 Phase 0 后，由用户另行明确发起 Phase 1。当前仅授权补充 Logging 基础设施；[路线图](roadmap.md) 的存在不等于授权自动接续业务开发。

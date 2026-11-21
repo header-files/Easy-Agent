@@ -37,7 +37,7 @@
 - 修改原因：原阶段任务过多，容易让 Coding Agent 在尚未建立工程骨架时同时设计并实现多个组件，违背当前「先确立整体架构，再逐步编码」的目标。
 - 影响范围：README、Coding Agent 入口、架构目标树、工程规范、`phase-0.md`、`phase-1.md`、`roadmap.md`、Cursor 规则和阶段验收。
 - 依据：用户确认先完成工程目录和规范，不在当前阶段开展 Agent 业务实现。
-- 现行规范：[Phase 0](phase-0.md)、[Phase 1](phase-1.md)、[架构设计](architecture.md)。
+- 现行规范：[Phase 0](phase-0.md)、[后续路线图](roadmap.md)、[架构设计](architecture.md)。
 
 ### 2026-11-20 — 增加设计与实现的变更追踪要求
 
@@ -90,3 +90,15 @@
 - 模块关联：六个模块仍只有文档，没有实质性设计或实现调整，因此不追加虚构模块历史；现行说明与原有日志分别见 [Application](../src/application/README.md) / [changes](../src/application/changes.md)、[Agent](../src/agent/README.md) / [changes](../src/agent/changes.md)、[Execution](../src/execution/README.md) / [changes](../src/execution/changes.md)、[Harness](../src/harness/README.md) / [changes](../src/harness/changes.md)、[Runtime](../src/runtime/README.md) / [changes](../src/runtime/changes.md)、[Composition](../src/composition/README.md) / [changes](../src/composition/changes.md)。
 - 依据：[Node.js 官方发布计划](https://github.com/nodejs/Release#release-schedule)、本次用户授权的 Phase 0 范围及实际工程配置。
 - 现行规范：[工程规范](conventions.md)、[实际目录与架构](architecture.md)、[Phase 0](phase-0.md)。
+
+### 2026-11-21 — 在 Phase 1 业务前补充统一 Logging 基础设施
+
+- 主题 ID：`infrastructure.logging`
+- 变更前：Phase 0 已完成工程工具链与文档骨架，项目无统一日志门面；业务能力仍未实现。
+- 变更后：当前只补充 `src/runtime/logging/`：以 Logger 门面隔离 Pino 10.4.0，提供结构化 JSON、默认 stderr、日志级别/LOG_LEVEL 配置、模块 child logger、结构化错误和敏感信息处理。后续模块统一依赖该门面，避免散落 console 调用或直接依赖日志后端。
+- 修改原因：在 Phase 1 业务开发前统一运行日志入口和输出约定，减少后续业务重复接入，同时保留模块关联字段的扩展空间。
+- 范围与取舍：不改变现有架构层级，不开启 ModelClient、Provider、Loop、Engine、Session、Tool 或 CLI。当前不实现文件轮转、远端日志服务、Session 事件或 trace 系统；child bindings 可携带后续关联字段，不提前定义追踪抽象。
+- 影响范围：Runtime Logging 与公共导出、依赖与锁文件、离线测试、README/AGENTS/Cursor、现行架构和日志规范。Phase 0 原验收作为历史保留，当前 Logging 的最终验证以真实执行结果交付。
+- 模块记录：[Runtime 变更](../src/runtime/changes.md)、[Logging 变更](../src/runtime/logging/changes.md)；具体接口、配置优先级和脱敏边界由 [Logging README](../src/runtime/logging/README.md) 维护。
+- 实际验收：2026-11-21，Node.js `v26.8.2` / npm `11.19.1`；`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 全部通过。20 项离线测试通过、0 失败、0 跳过（日志行为 11 项、脱敏 7 项、源码/构建导入 2 项）；包含真实子进程 stderr/stdout 隔离及替代 Logger 契约验证，无需模型密钥或外部服务。
+- 现行规范：[工程与统一日志规范](conventions.md)、[当前任务范围](AGENT.md)、[架构](architecture.md)。

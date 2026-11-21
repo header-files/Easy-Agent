@@ -26,4 +26,14 @@
 
 ## 变更时间线
 
-当前尚无本模块的实质性设计或实现变更记录。Phase 0 创建说明文档只是建立现行基线，不虚构模块演进历史。
+Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追加如下。
+
+### 2026-11-21 — 新增 Logging 基础设施
+
+- 主题 ID：`runtime.logging`
+- 变更前：Runtime 只有职责文档，没有基础设施或业务实现。
+- 变更后：新增 Logging 子能力域与本地 README/changes，提供统一 Logger、Pino 适配、四级结构化日志、Error 序列化、子 logger、环境阈值、stderr 和脱敏。
+- 修改原因：用户要求在 Phase 0 基线上先实现 Logging，供后续模块共享。
+- 影响范围：`src/runtime/logging` 与 Logging 测试；未实现 Model、Agent、Loop、Session 或 Tool。
+- 依据/验证：按公共接口、输出行为和安全边界执行离线测试；详情见 [Logging 时间线](logging/changes.md)，最终结果见项目验收记录。
+- 现行说明：[README.md](README.md)、[Logging README](logging/README.md)。
