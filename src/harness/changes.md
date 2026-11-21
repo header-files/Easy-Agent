@@ -27,3 +27,13 @@
 ## 变更时间线
 
 当前尚无本模块的实质性设计或实现变更记录。Phase 0 创建说明文档只是建立现行基线，不虚构模块演进历史。
+
+### 2026-11-21 — 引入 Phase 1.1 模型公共契约
+
+- 主题 ID：`harness.model-contracts`
+- 变更前：Harness 仅有模块说明与目录归属，没有可供模型实现和调用方共同依赖的契约。
+- 变更后：新增 `contracts/model`，定义消息、Tool Calling、统一 `parameters`、ModelClient 的 `generate` / `stream` 方法、流式事件、Usage、取消/超时选项和 ModelError；公共类型不依赖 Provider SDK。实例可复用，所有请求状态由实现按调用隔离。
+- 修改原因：用户明确授权实施 Phase 1.1 V1.1 Model System，需要为 Runtime Adapter 以及后续 Agent Loop 提供统一边界。
+- 影响范围：本模块公共接口、契约测试和模块文档；不引入 AgentLoop、Session 或 Harness 请求代理。
+- 依据/验证：用户提供的 Phase 1.1 技术方案；`tests/model-contracts.test.ts` 验证联合类型、工具参数保真、统一/扩展参数、替代实现、返回值及 ModelError，类型检查覆盖静态约束。
+- 现行说明：[Model Contracts](contracts/model/README.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。

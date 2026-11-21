@@ -102,3 +102,25 @@
 - 模块记录：[Runtime 变更](../src/runtime/changes.md)、[Logging 变更](../src/runtime/logging/changes.md)；具体接口、配置优先级和脱敏边界由 [Logging README](../src/runtime/logging/README.md) 维护。
 - 实际验收：2026-11-21，Node.js `v26.8.2` / npm `11.19.1`；`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 全部通过。20 项离线测试通过、0 失败、0 跳过（日志行为 11 项、脱敏 7 项、源码/构建导入 2 项）；包含真实子进程 stderr/stdout 隔离及替代 Logger 契约验证，无需模型密钥或外部服务。
 - 现行规范：[工程与统一日志规范](conventions.md)、[当前任务范围](AGENT.md)、[架构](architecture.md)。
+
+### 2026-11-21 — 按用户授权进入 Phase 1.1 Model System
+
+- 主题 ID：`delivery.phase-scope`
+- 变更前：Phase 0 工程与统一 Logging 基础设施已完成；模型契约、Provider 和 CLI 等为后续业务计划。
+- 变更后：用户明确授权单独实施 Phase 1.1 Model System；当前范围为 Harness Model Contracts、复用既有 Logger 的 Runtime OpenAI-compatible Chat Completions 及离线验证。Phase 0 保留工程基线与历史验收；不自动进入 Phase 1.2，也不实现 Session、Engine、Loop、Tool Runtime 或 CLI。
+- 修改原因：将用户确认的模型系统 V1.1 技术方案变为可供后续 Loop 依赖的独立能力，避免一次扩展到完整 Agent 闭环。
+- 影响范围：README、AGENTS/Cursor 入口、阶段文件、全局架构/工程规范、路线图，以及六个模块的真实阶段说明。Application、Agent、Execution、Composition 仅同步当前未实现状态，没有追加虚构实现日志。
+- 依据：用户提供的《Phase 1.1 Model System 技术方案 V1.1》及明确执行要求。
+- 现行规范：[Phase 1.1](phase-1.1.md)、[架构](architecture.md)、[工程规范](conventions.md)、[路线图](roadmap.md)。
+
+### 2026-11-21 — 确立模型公共契约与可复用并发实例
+
+- 主题 ID：`model.contracts-and-concurrency`
+- 变更前：Harness 尚无模型契约；Runtime 已有 Logging 基础设施，尚无公共模型接口实现或具体 Provider。
+- 变更后：Harness 提供统一 ModelClient、消息、请求/响应、工具、事件及错误协议；Runtime 在既有 Logger 基线上实现 generate/stream、映射、工具增量组装、取消、超时及生命周期日志。生成参数统一由 parameters 承载，扩展参数保留原名并拒绝核心字段覆盖与等价参数冲突。单实例复用固定配置，各调用独立持有可变状态，通过隔离支持并发。
+- 修改原因：使后续 Loop 依赖 Provider 无关契约，同时正确处理自然并发、请求取消和多个工具调用的增量状态，避免 Harness 成为必经转发层或引入全局串行锁。
+- 实现取舍：采用 Node.js 内置 fetch，沿用既有 Pino Logging，不增加模型 SDK 运行时依赖。Provider 配置支持 Logger/fetch 注入与 maxTokensField，以支持离线测试和显式选择 token 限制字段；公共契约保持用户方案。模型能力只产生工具调用，不负责工具执行或参数 JSON 校验；日志仅记录白名单诊断元数据，拒绝消息、工具参数和凭据进入生命周期记录。
+- 影响范围：公共入口、Harness Model Contracts、Runtime Model、离线契约/映射/流式/错误/并发测试和模块就近文档；整体架构层级保持原基线。
+- 模块记录：[Harness](../src/harness/changes.md)、[Model Contracts](../src/harness/contracts/model/changes.md)、[Runtime](../src/runtime/changes.md)、[Runtime Model](../src/runtime/model/changes.md)。具体行为与验证由模块记录和阶段实际验收维护，不在此重复全文。
+- 实际验收：2026-11-21，类型检查、lint、全仓格式检查、构建及全部离线测试通过；75 项通过、0 失败、0 跳过。命令、测试构成与真实 API 未验证的边界见 [Phase 1.1 实际验收](phase-1.1.md#实际验收记录)。
+- 现行规范：[Phase 1.1](phase-1.1.md)、[模型公共契约](../src/harness/contracts/model/README.md)、[Runtime Model](../src/runtime/model/README.md)。

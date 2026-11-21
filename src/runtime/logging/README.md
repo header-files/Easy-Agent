@@ -4,7 +4,7 @@
 
 在 Phase 0 工程基线上提供可直接使用的 Logging 能力，为后续模块提供统一的日志入口。公共接口独立于日志供应商，当前使用 Pino 10.4.0 输出结构化 JSON；更换实现时，调用方继续依赖 `Logger`。
 
-本模块负责四种级别、模块标识、结构化字段、错误序列化、子 logger、级别配置、输出目的地和脱敏。当前只实现 Logging，不创建 Model、Agent、Loop、Engine、Session 或 Tool 业务代码，也不提供全局 DI、日志轮转、文件管理、HTTP 日志中间件、分布式 tracing 或完整可观测性平台。
+本模块负责四种级别、模块标识、结构化字段、错误序列化、子 logger、级别配置、输出目的地和脱敏。Logging 在 Phase 1 业务前已完成，当前 Model System 通过此门面记录调用生命周期；日志模块不承担模型请求、Agent、Loop、Engine、Session 或工具执行，也不提供全局 DI、日志轮转、文件管理、HTTP 日志中间件、分布式 tracing 或完整可观测性平台。
 
 ## 公共入口
 
@@ -91,6 +91,8 @@ logger.debug('Configuration checked', { valid: true });
 
 通过 `logger.error('Operation failed', { err })` 记录异常。原生 Error 的不可枚举 `name`、`message`、`stack` 和 `cause` 会被结构化保留，嵌套错误和自定义字段经过同一脱敏路径；不依赖 Pino 的默认 Error 序列化绕过安全处理。
 
+结构化对象（包括 Error 字段）中值为 `undefined` 的属性省略；数组中的 `undefined` 和空位按 JSON 语义输出为 `null`。例如，没有 HTTP 状态码时不输出 `err.status`，有状态码时保留数字值。
+
 ## 子 logger 与上下文
 
 `logger.child('runtime.logging', { component: 'startup' })` 返回共享同一阈值、输出目标和脱敏配置的 logger。子 logger 使用**精确传入**的模块名，继承已有绑定，新绑定和每次调用字段依次覆盖同名普通字段。
@@ -125,4 +127,4 @@ logger.error('Configuration rejected', {
 
 离线测试覆盖四级阈值、环境优先级、JSON 格式、stderr、子 logger 隔离、Error/cause 和敏感字段。完整命令为 `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test`；实际执行结果由本次交付和项目验收记录报告，不需要 API Key 或外部服务。
 
-相关说明：[Runtime](../README.md)、[工程规范](../../../docs/conventions.md)、[Phase 0](../../../docs/phase-0.md)、[本模块时间线](changes.md)。实现依据：[Pino API](https://github.com/pinojs/pino/blob/main/docs/api.md)。
+相关说明：[Runtime Model](../model/README.md)、[Runtime](../README.md)、[工程规范](../../../docs/conventions.md)、[Phase 0](../../../docs/phase-0.md)、[本模块时间线](changes.md)。实现依据：[Pino API](https://github.com/pinojs/pino/blob/main/docs/api.md)。

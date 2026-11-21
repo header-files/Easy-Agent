@@ -4,7 +4,7 @@
 
 ## 开始工作前
 
-1. 先阅读 `docs/AGENT.md` 和 **`docs/phase-0.md`**，确认工程基线及当前 Logging 基础设施范围；涉及日志时再读 `src/runtime/logging/README.md` 与 `changes.md`。
+1. 先阅读 `docs/AGENT.md` 和 **`docs/phase-1.1.md`**，确认当前任务范围；`docs/phase-0.md` 保留工程基线与历史验收；Logging 是已完成的运行基础设施，涉及日志时先读 `src/runtime/logging/README.md` 与 `changes.md`。
 2. 阅读 `docs/architecture.md`、`docs/conventions.md`，按需参考 `docs/roadmap.md`。
 3. **定位本次变更所属模块**，先读对应 `src/<module>/README.md` 和 `src/<module>/changes.md`；如存在更深一层的能力子模块，优先读该子模块文档，并按需阅读父模块。
 4. 修改全局架构或跨模块行为时，再阅读 `docs/changes.md` 中相关决策记录。
@@ -12,12 +12,12 @@
 
 ## 必须遵守
 
-- **Phase 0 工程基线已完成；当前只补充 Logging 基础设施，尚未启用 Phase 1 业务开发。**
+- **当前阶段是 Phase 1.1：仅实现 Harness Model Contracts、Runtime Model System 及对应离线测试；不自动进入 Phase 1.2。**
 - Easy Agent 定位为开箱即用、灵活可扩展的通用 Agent；原则为 Easy to Use / Easy to Extend。
 - 架构：Application / Agent / Execution / Runtime 四个运行职责层；Harness 横向支撑；Composition / Bootstrap 统一装配。
 - 保留 Agent Loop（策略）与 Execution Engine（机制）的设计分离；不把 Harness 做成请求必经层，不强制逐层调用。
 - 按能力域组织 Runtime；不提前进行全组件插件化、复杂 DI 或分布式改造。
-- 当前只实现统一 Logger 门面、Pino 结构化输出、日志级别配置、模块子日志及敏感字段处理；不实现 CLI 对话、模型适配、Session、Engine、Loop、Tool 等业务能力。
+- Phase 0 与统一 Logging 工程基线继续适用。Phase 1.1 实现统一模型契约、OpenAI-compatible Chat Completions、流式与 Tool Calling、参数映射、取消/超时及并发隔离；不实现 CLI、Session、Engine、Loop、Tool Runtime 或工具执行。
 - **每个一级职责模块必须有就近 `README.md` 和 `changes.md`**，目前为 `src/application`、`src/agent`、`src/execution`、`src/harness`、`src/runtime`、`src/composition`。它们是有效说明文档，不是业务功能占位实现。
 - 新增职责独立的子模块/能力域时，随着实际功能落地创建对应 `README.md` 与 `changes.md`，不要求每个文件、工具类或普通子目录都有独立文档。
 - 不为未来能力批量创建空实现、无用接口或占位类。

@@ -138,6 +138,7 @@ export function safeFields(
   let remaining = MAX_NODES;
 
   const visit = (value: unknown, depth: number): unknown => {
+    if (value === undefined) return undefined;
     if (--remaining < 0 || depth > MAX_DEPTH) return '[Truncated]';
     if (typeof value === 'string') return safeText(value, redactValues);
     if (value === null || typeof value === 'boolean') return value;
@@ -155,6 +156,8 @@ export function safeFields(
     ancestors.add(value);
     try {
       const read = (key: string, descriptor: PropertyDescriptor): unknown => {
+        if ('value' in descriptor && descriptor.value === undefined)
+          return undefined;
         if (sensitiveKey(key)) return REDACTED;
         if ('value' in descriptor) return visit(descriptor.value, depth + 1);
         // V8's native lazy stack is useful diagnostic data; arbitrary getters stay uncalled.
@@ -182,7 +185,10 @@ export function safeFields(
         const result: unknown[] = [];
         for (let index = 0; index < Math.min(length, MAX_ITEMS); index++) {
           const descriptor = descriptors[String(index)];
-          result.push(descriptor ? read(String(index), descriptor) : null);
+          const entry = descriptor
+            ? read(String(index), descriptor)
+            : undefined;
+          result.push(entry ?? null);
         }
         if (length > MAX_ITEMS) result.push('[Truncated]');
         return result;
@@ -202,8 +208,10 @@ export function safeFields(
         );
       }
       for (const [key, descriptor] of entries.slice(0, MAX_ITEMS)) {
+        const entry = read(key, descriptor);
+        if (entry === undefined) continue;
         Object.defineProperty(result, safeText(key, redactValues), {
-          value: read(key, descriptor),
+          value: entry,
           enumerable: true,
           writable: true,
           configurable: true,

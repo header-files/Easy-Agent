@@ -129,6 +129,47 @@ test('原生 Error 的名称、消息、堆栈、cause 和自定义字段均先�
   assert.equal(error.details.API_KEY, 'detail-secret');
 });
 
+test('undefined 对象属性被省略，数组元素保留位置为 null，且不修改输入', () => {
+  const error = Object.assign(new Error('failure', { cause: undefined }), {
+    status: undefined,
+    code: 'E_TEST',
+  });
+  const sparse = new Array<unknown>(2);
+  sparse[1] = undefined;
+  const fields = {
+    absent: undefined,
+    apiKey: undefined,
+    nested: { absent: undefined, kept: null, zero: 0, flag: false },
+    items: [
+      undefined,
+      { absent: undefined, kept: 'value' },
+      null,
+      0,
+      false,
+      '',
+    ],
+    sparse,
+    err: error,
+  };
+  const output = safeFields(fields);
+  assert.equal(Object.hasOwn(output, 'absent'), false);
+  assert.equal(Object.hasOwn(output, 'apiKey'), false);
+  assert.deepEqual(output.nested, { kept: null, zero: 0, flag: false });
+  assert.deepEqual(output.items, [null, { kept: 'value' }, null, 0, false, '']);
+  assert.deepEqual(output.sparse, [null, null]);
+  const err = output.err as Record<string, unknown>;
+  assert.equal(Object.hasOwn(err, 'status'), false);
+  assert.equal(Object.hasOwn(err, 'cause'), false);
+  assert.equal(err.code, 'E_TEST');
+  assert.equal(err.message, 'failure');
+  assert.equal(typeof err.stack, 'string');
+  assert.equal(JSON.stringify(output).includes('[Unsupported]'), false);
+  assert.equal(Object.hasOwn(fields, 'absent'), true);
+  assert.equal(Object.hasOwn(error, 'status'), true);
+  assert.equal(fields.items[0], undefined);
+  assert.equal(0 in sparse, false);
+});
+
 test('自定义 toJSON、普通 getter 和异常 getter 不能绕过脱敏或使日志崩溃', () => {
   let invoked = 0;
   const source = {

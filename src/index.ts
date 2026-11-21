@@ -6,3 +6,8 @@ export type {
   LoggerOptions,
   LogLevel,
 } from './runtime/logging/index.ts';
+export * from './harness/contracts/model/index.ts';
+export {
+  OpenAICompatibleModelClient,
+  type OpenAICompatibleConfig,
+} from './runtime/model/index.ts';

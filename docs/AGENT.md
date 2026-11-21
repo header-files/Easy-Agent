@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**Phase 0 工程基线已完成；当前任务只补充 Logging 基础设施，Phase 1 业务开发尚未启用。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.1：实现 Model System，不自动接续 Phase 1.2 或最小 Agent 闭环。**
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-0.md`：已完成的工程基线与历史验收；当前 Logging 范围见本文第 3 节及 `src/runtime/logging/README.md`。**
+3. **`docs/phase-1.1.md`：当前阶段范围、任务与验收标准；`docs/phase-0.md` 为已完成工程基线。**
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,49 +29,47 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前任务：Phase 1 业务之前的 Logging 基础设施
+## 3. 当前阶段应该做什么：Phase 1.1
 
-[Phase 0](phase-0.md) 已完成工程验收。当前只在现有工程中补齐统一日志能力：
+在已完成的 Phase 0 与 [Runtime Logging](../src/runtime/logging/README.md) 基线上，严格依照 [phase-1.1.md](phase-1.1.md) 开展：
 
-- 在 `src/runtime/logging/` 实现 Logger 门面与 Pino 适配，调用方使用 `debug/info/warn/error(message, fields?)`、`child(module, bindings?)` 和 `createLogger(config)`。
-- 统一结构化 JSON 运行日志及 stderr 输出，提供日志级别、`LOG_LEVEL` 初始化配置和模块字段；避免混入未来 CLI 的 stdout 正常输出。
-- 错误通过结构化字段记录，处理敏感字段与明确配置的敏感值；不记录密钥、认证信息或完整输入/模型请求载荷。
-- 提供离线测试，验证日志结构、等级过滤、模块子日志、配置优先级、错误与敏感信息处理，以及源码/构建入口加载。
-- 维护 Runtime/Logging 的就近文档和时间线，同步项目级公共日志规范。
+- 在 `src/harness/contracts/model/` 定义 ModelClient、消息、参数、工具、响应、流式事件、调用选项和统一错误契约，公共类型不依赖 Provider SDK。
+- 在 `src/runtime/model/` 实现 OpenAI-compatible Chat Completions Adapter，支持 `generate()`、`stream()`、Tool Calling 和 Tool Result 映射。
+- 所有生成参数由 `ModelRequest.parameters` 传入；标准参数映射，扩展参数原名透传，拒绝核心字段覆盖及等价参数冲突。
+- 实例可复用；请求级缓存、ToolCall 组装、取消和超时状态独立，允许 generate/stream 自然并发。
+- ModelClient 使用既有 Logger 门面记录生命周期元数据，支持注入 Logger；不记录消息、工具参数、请求/响应正文、认证配置或原始底层错误。
+- 补充公共契约、映射、流式协议、错误、取消/超时、并发、资源释放及生命周期日志的离线测试。
+- 同步维护 Harness、Runtime 及子模块的现行说明和时间线，项目级记录阶段切换与跨模块决策。
 
-实现细节、配置规则、使用例子与测试方式以 [Runtime Logging](../src/runtime/logging/README.md) 为准。当前不实现文件轮转、远端日志服务、Session 事件或 trace 系统；子日志绑定可携带后续关联字段，不提前设计追踪抽象。
+Phase 0 的 TypeScript / Node.js / ESM、统一 Logging、质量脚本和文档约束继续适用；历史验收见 [phase-0.md](phase-0.md)。
 
-**本次不开展 Phase 1 业务功能，也不要求可对话 Agent 或 CLI 命令。**
+## 4. 不在本次阶段实现的功能
 
-## 4. 绝对不要擅自实现的功能
+- Agent Loop、Execution Engine、AgentManager / SessionAgent 和 CLI 对话。
+- Tool Runtime、工具注册/参数校验/实际执行；模型产生工具调用不代表工具已经运行。
+- 多模态、Reasoning Content 专用协议、Responses API、其他 Provider 原生协议。
+- Model Registry、路由、自动重试/Fallback、全局并发限制和请求队列。
+- Session 调度、上下文管理、Token Budget、Memory、MCP、Skill 和持久化。
+- HTTP 服务、SDK 发布、Web UI、复杂插件框架、DI 容器和分布式部署。
 
-以下功能即使已出现在目标架构中，也属于 **Phase 1 或更后续**：
-
-- AgentManager / SessionAgent、进程内对话历史、Execution Engine、Basic Loop。
-- ModelClient 接口、OpenAI-compatible Provider、配置/依赖装配业务逻辑。
-- CLI 模型配置、连续输入、回答输出、退出等交互功能。
-- Tool Calling、MCP、Skill、Memory、RAG、Context 压缩。
-- Inbox、Scheduler、Follow-up、Steer、Cancel、Approval、Recovery，以及相关事务和状态机。
-- HTTP API、SSE、SDK 发布、Web UI、数据库、Redis、消息队列、多 Agent。
-- 复杂插件化、DI 容器、热插拔、跨进程调度。
-
-如需要保留目录设计，**在 `docs/architecture.md` 描述即可**。不要为每种未来能力创建空 `.ts` 文件、无实际用途的抽象类、假实现或假测试。空目录不必使用 `.gitkeep` 批量提交。
+未来能力只保留必要职责说明，不创建无用接口或占位实现。
 
 ## 5. 推荐开发顺序
 
-1. 检查现有工程与工作区，保留用户改动；先读 Runtime 和 Logging 就近说明与历史。
-2. 实现统一日志门面、Pino 适配、配置与安全字段处理，不引入业务组件。
-3. 补充真实日志输出、过滤、子日志、错误及脱敏的离线验证。
-4. 更新模块与项目级文档，执行类型检查、lint、格式检查、构建与全部测试。
-5. 汇报实际结果、未实现能力与需要后续决策的事项。
+1. 检查已有工程和 Git 工作区，保留用户现有改动；按模块读取就近 README/changes。
+2. 实现 Harness Model Contracts 及契约测试。
+3. 实现 Runtime 请求/响应/流式映射、Tool Calling、参数处理及统一生命周期日志。
+4. 实现请求取消、完整调用时限及资源释放，验证单实例多请求状态隔离。
+5. 补齐离线单元/集成测试、模块文档和项目级决策记录。
+6. 执行并报告类型检查、lint、格式检查、构建与测试的真实结果。
 
-Phase 0 的工程约束继续适用，历史验收保留在 [phase-0.md](phase-0.md)。后续业务阶段仍需用户明确发起。
+阶段任务及 Definition of Done 以 [phase-1.1.md](phase-1.1.md) 为准；完成后等待新的阶段授权。
 
 ## 6. 开发与验证约束
 
 - TypeScript `strict`；Node.js ESM；统一 npm 锁文件；使用一致的格式化与静态检查工具。
 - 测试必须离线运行，不依赖外部服务、模型密钥或数据库。
-- 开发时同步补充单元测试，优先覆盖已落地的配置解析、错误归一、日志上下文和核心业务。交付前执行当前任务要求的全部工程检查，日志测试不得依赖外部服务。
+- 开发时同步补充单元测试，优先覆盖已落地的配置解析、错误归一、日志上下文和核心业务。交付前执行当前阶段要求的全部检查，并报告实际结果。
 - 不伪造 Agent 业务能力以凑测试；smoke test 只用于验证项目入口和测试基础设施。
 - 不为未来接口提前设计函数签名、状态机、事务边界或存储格式。
 - 开始某模块的开发前只需按需阅读其 `README.md`、`changes.md` 及直接关联模块文档，不必每次加载所有模块或全仓历史。
@@ -99,7 +97,8 @@ Phase 0 的工程约束继续适用，历史验收保留在 [phase-0.md](phase-0
 | `docs/architecture.md`          | **当前有效**架构、职责、目标目录结构                                             |
 | `docs/conventions.md`           | 技术、代码、安全、测试及文档规范                                                 |
 | `docs/phase-0.md`               | 已完成的工程初始化基线和历史验收                                                 |
-| `src/runtime/logging/README.md` | 当前 Logging 的接口、配置、边界与验证方式                                        |
+| `docs/phase-1.1.md`             | **当前** Model System 范围和验收                                                 |
+| `src/runtime/logging/README.md` | 已完成 Logging 的接口、配置与安全边界                                            |
 | `docs/roadmap.md`               | 后续能力范围，不是本期待办                                                       |
 | `docs/changes.md`               | 项目级架构、公共规范及跨模块决策的**可追溯时间线**                               |
 | `src/<module>/README.md`        | **模块级现行说明**：背景、职责、边界、实现状态、入口与验证方式（功能实现后补充） |
@@ -138,6 +137,6 @@ Phase 0 的工程约束继续适用，历史验收保留在 [phase-0.md](phase-0
 
 1. 创建或修改了哪些文件，项目骨架实际完成到什么程度。
 2. 运行过的 `typecheck`、`lint`、`format:check`、`build`、`test` 命令及**真实结果**。
-3. 当前未实现的功能（尤其是 Agent 对话、模型适配器、CLI 交互）；本次影响的模块说明文件与本地变更日志。
+3. 当前未实现的功能（尤其是 Agent Loop、工具执行、Session、CLI 交互）；本次影响的模块说明文件与本地变更日志。
 4. 是否涉及实质性设计/实现变更，变更记录是否已追加。
 5. 需要用户决策的架构偏离或阻塞，不自行扩大任务范围。

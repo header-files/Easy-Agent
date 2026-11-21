@@ -4,7 +4,7 @@
 >
 > **本阶段不实现 Agent 业务功能，不以能和模型对话作为验收条件。**
 >
-> **历史交付状态：2026-11-20 已完成本阶段工程验收。当前按用户要求补充 Logging 基础设施，范围见 [Coding Agent 工作说明](AGENT.md) 和 [Runtime Logging](../src/runtime/logging/README.md)；尚未进入 Phase 1 业务开发。以下记录描述 Phase 0 当时范围。**
+> **历史交付状态：2026-11-20 已完成本阶段工程验收。Logging 基础设施随后已完成独立验收，作为 Phase 1 的工程基线；2026-11-21 用户已授权 Phase 1.1；当前任务见 [phase-1.1.md](phase-1.1.md)。以下任务与验收记录描述 Phase 0 当时范围。**
 
 ## 1. 阶段边界
 
@@ -32,9 +32,8 @@
  │   ├── AGENT.md
  │   ├── architecture.md
  │   ├── conventions.md
- │   ├── phase-0.md              # 当前阶段
- │   ├── phase-1.md              # 后续阶段
- │   ├── roadmap.md
+ │   ├── phase-0.md              # Phase 0 历史基线
+ │   ├── roadmap.md              # 后续阶段规划
  │   └── changes.md              # 变更时间线
  ├── package.json
  ├── package-lock.json
@@ -160,4 +159,4 @@
 
 ## 6. Phase 1 启动条件
 
-完成并验收 Phase 0 后，由用户另行明确发起 Phase 1。当前仅授权补充 Logging 基础设施；[路线图](roadmap.md) 的存在不等于授权自动接续业务开发。
+完成并验收 Phase 0 后，由用户另行明确发起后续阶段。在统一 Logging 基线已完成后，用户已于 2026-11-21 明确要求实现 [Phase 1.1 Model System](phase-1.1.md)，本历史文档不再作为当前实现范围。阶段文档与路线图的存在仍不等于自动接续开发授权。

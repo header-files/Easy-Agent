@@ -36,7 +36,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 这张图是**职责组织图，不是执行请求调用链**。Harness 不是 Execution 与 Runtime 之间的必经中间件；Composition / Bootstrap 负责装配，不负责运行用户任务。各模块通过必要的契约直接协作。
 
-**Phase 0 工程基线已完成；当前仅补充 Runtime Logging 基础设施，图示 Agent 业务组件仍未实现，Phase 1 尚未启用。**
+**Phase 0 与 Logging 基线已完成；当前 Phase 1.1 落地 Harness Model Contracts 与带统一生命周期日志的 Runtime Model System，其他业务组件仍为后续设计。** 工程基线与历史验收见 [Phase 0](phase-0.md)，当前范围见 [Phase 1.1](phase-1.1.md)。
 
 ## 2. 核心模块职责
 
@@ -60,15 +60,15 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 ### 2.3 Execution
 
-保留 **Agent Loop（策略）与 Execution Engine（机制）分离**。Loop 决定下一步动作和终止；Engine 负责通用执行生命周期、控制与资源清理。默认 Basic Loop 属于后续 Phase 1。
+保留 **Agent Loop（策略）与 Execution Engine（机制）分离**。Loop 决定下一步动作和终止；Engine 负责通用执行生命周期、控制与资源清理。默认 Basic Loop 属于后续 Phase 1.2，当前不实现。
 
 ### 2.4 Harness
 
-提供 Contracts、Context Management、Extension System、Execution Services、Governance 等横向支撑，**不是第五条纵向业务调用链**。契约可以在 Harness 中组织，也可随能力域放置，不强制一个巨型接口包。
+提供 Contracts、Context Management、Extension System、Execution Services、Governance 等横向支撑，**不是第五条纵向业务调用链**。当前模型契约集中在 `src/harness/contracts/model/`；其他契约随真实能力落地，不建立巨型接口包。
 
 ### 2.5 Runtime
 
-具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。Logging 是当前落地的公共运行基础设施，位于 `src/runtime/logging/`；通过统一 Logger 门面供各模块使用，不增加架构层级。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。
+具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions，并复用 Logger 记录生命周期元数据，调用方可直接使用该实例。
 
 ### 2.6 Composition / Bootstrap
 
@@ -85,7 +85,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 ## 4. 执行实体与控制模型（未来设计基线）
 
-这些概念用于明确后续设计方向，**Phase 0 不实现相关类或状态机**。
+这些概念用于明确后续设计方向，**Phase 1.1 不实现相关类或状态机**。
 
 | 概念      | 定位                               |
 | --------- | ---------------------------------- |
@@ -105,73 +105,55 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 - **Approval**：独立实体，通过引用关联 Step，审批通过不代表操作已成功执行。
 - **Recovery**：基于已有事实核实和恢复，不改写已经发生的历史记录。
 
-具体状态机、审批协议、事件事务边界等以后在相应模块开发时讨论，**不在 Phase 0 编写详细实现**。
+具体状态机、审批协议、事件事务边界等以后在相应模块开发时讨论，**不在 Phase 1.1 编写详细实现**。
 
-## 5. 当前工程目录：Phase 0 基线与 Logging
+## 5. Phase 1.1：当前工程目录与模型边界
 
-Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架；当前在 Runtime 中增加 Logging 能力，未创建 Agent 业务组件。当前交付结构：
+Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架。在既有 Runtime Logging 基础上，当前在 Harness 与 Runtime 中落地 Model System：
 
 ```text
- easy-agent/
- ├── README.md                     # 产品介绍、当前支持情况
- ├── AGENTS.md                     # Codex 等 Coding Agent 规则入口
- ├── .cursor/
- │   └── rules/
- │       └── easy-agent.mdc        # Cursor 引导规则
- ├── docs/
- │   ├── AGENT.md                   # Coding Agent 总指引
- │   ├── architecture.md            # 当前架构及目标目录（本文）
- │   ├── conventions.md             # 技术栈、工程与文档规范
- │   ├── phase-0.md                 # 已完成的工程基线与历史验收
- │   ├── roadmap.md                 # 后续能力规划
- │   └── changes.md                 # 变更历史、原因与时间线
- ├── package.json
- ├── package-lock.json
- ├── tsconfig.json                  # src 与 tests 的统一严格类型检查
- ├── tsconfig.build.json            # 只编译 src 到 dist
- ├── eslint.config.js
- ├── .prettierrc.json
- ├── .prettierignore
- ├── .gitignore
- ├── .nvmrc                         # Node.js 26
- ├── src/
- │   ├── index.ts                   # 仅导出已实现的 Logging 能力
- │   ├── application/              # 用户入口职责模块：仅文档
- │   │   ├── README.md
- │   │   └── changes.md
- │   ├── agent/                    # 会话/任务职责模块：仅文档
- │   │   ├── README.md
- │   │   └── changes.md
- │   ├── execution/                # 执行机制/策略职责模块：仅文档
- │   │   ├── README.md
- │   │   └── changes.md
- │   ├── harness/                  # 横向契约/支撑模块：仅文档
- │   │   ├── README.md
- │   │   └── changes.md
- │   ├── runtime/                  # Logging 基础设施已落地，其他能力未实现
- │   │   ├── README.md
- │   │   ├── changes.md
- │   │   └── logging/              # Logger 门面、Pino 适配及本地 README/changes
- │   └── composition/              # 组件装配模块：仅文档
- │       ├── README.md
- │       └── changes.md
- └── tests/
-     ├── smoke.test.ts              # 验证源码与构建输出加载
-     └── logging*.test.ts          # 统一日志离线验证
+easy-agent/
+├── AGENTS.md / .cursor/rules/easy-agent.mdc
+├── README.md
+├── docs/
+│   ├── AGENT.md / architecture.md / conventions.md
+│   ├── phase-0.md                 # 已完成的工程基线与历史验收
+│   ├── phase-1.1.md               # 当前 Model System 范围与验收
+│   └── roadmap.md / changes.md
+├── package.json / package-lock.json
+├── tsconfig.json / tsconfig.build.json
+├── eslint.config.js / .prettierrc.json / .prettierignore
+├── .gitignore / .nvmrc
+├── src/
+│   ├── index.ts                   # Logger 门面、公共模型契约和 Adapter 导出
+│   ├── application/               # 仅 README.md / changes.md
+│   ├── agent/                     # 仅 README.md / changes.md
+│   ├── execution/                 # 仅 README.md / changes.md
+│   ├── harness/
+│   │   ├── README.md / changes.md
+│   │   └── contracts/model/       # 公共契约、README.md / changes.md
+│   ├── runtime/
+│   │   ├── README.md / changes.md
+│   │   ├── logging/               # 既有 Logger 门面、Pino 适配及就近文档
+│   │   └── model/                 # Adapter、README.md / changes.md
+│   └── composition/               # 仅 README.md / changes.md
+└── tests/                         # ESM smoke、Logging、契约、Adapter、并发及日志集成
 ```
 
-说明：
+- `ModelClient.generate()` 返回完整响应，`stream()` 返回异步事件流。公共契约不依赖 OpenAI SDK，不引入 Session、Turn 或执行实体。
+- `ModelRequest.parameters` 统一承载标准参数和扩展参数。Adapter 做协议映射、冲突校验及错误归一，不执行工具或维护消息历史。
+- ModelClient 是可复用实例。只共享固定配置及 HTTP 能力；每次调用独立持有响应、文本/工具增量缓存、AbortController 与超时状态，不使用全局锁串行化请求。
+- ModelClient 使用既有 Logger 门面，默认提供统一日志并支持构造时注入。生命周期日志只记录诊断元数据，日志不成为响应事件或消息历史，也不泄露模型消息、工具参数和认证配置。
+- 模型取消与超时属于单次模型请求；不等同于 Agent Execution 的取消、排队或恢复。
+- 当前允许直接创建 Adapter 进行调用，不实现完整 Composition/Bootstrap。后续 Loop 依赖 ModelClient 契约，由装配边界选择具体实现。
+- `node_modules/` 和 `dist/` 为忽略的生成目录；私有单包结构、ESM 与工程工具链保持不变。没有 CLI 聊天、默认 Agent 或工具实际执行。
+- 能力子模块随真实实现创建本地 README/changes，不为其他未来能力建立空目录或占位接口。
 
-- 此树描述当前工程；`node_modules/` 和 `dist/` 为忽略的生成目录，不是新增业务模块。工具链细则见 [工程规范](conventions.md)。
-- **本阶段不需要 ModelClient、Basic Loop、AgentManager 等源码，也不要求有可运行的 Agent。**
-- 六个一级职责模块目录在 Phase 0 **实际创建且包含有效的 `README.md` 和 `changes.md`**；这是为了支持 Coding Agent 单模块开发，并非空占位源码。
-- 更深一层的能力子模块（如 `src/runtime/model/`）仍遵循按需落地原则：真正开始实现时，**随代码一同创建本地 README 与 changes**，不为所有未来能力提前建立空目录或空 TypeScript 接口。
-- `.env.example`、模型配置与 CLI 聊天命令随 Phase 1 实际实现再添加。
-- 当前 Logging 的门面、配置与结构化 JSON 输出不代表 Agent 核心已经完成。接口和测试说明以 [Runtime Logging](../src/runtime/logging/README.md) 为准；文件轮转、远端服务与 trace 系统不在当前范围。
+Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。具体模型协议和使用以 [Harness Model Contracts](../src/harness/contracts/model/README.md)、[Runtime Model](../src/runtime/model/README.md) 为准。
 
-## 6. Phase 1：未来最小 Agent 的建议源码组织
+## 6. Phase 1.2 及后续：未来最小 Agent 的建议源码组织
 
-以下是 **Phase 1 业务源码计划结构（一级模块 README/changes 在 Phase 0 已建立），不是 Phase 0 的业务创建任务**：
+以下是 **未来 Agent 闭环的建议源码组织，不是 Phase 1.1 的创建任务**。已有模型模块沿用上一节结构，其余路径随实际需求确认：
 
 ```text
  src/
@@ -193,10 +175,10 @@ Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模
  ├── harness/
  │   └── contracts/
  │       ├── agent-loop.ts
- │       └── model-client.ts
+ │       └── model/               # Phase 1.1 已有公共模型契约
  └── runtime/
      └── model/
-         └── openai-compatible.ts
+         └── providers/          # Phase 1.1 已有 Adapter
 ```
 
 此目录仅示意组件归属，并非所有文件都已经确定必须采用这些名称。测试按真实代码添加，不提前定义大批接口。
@@ -242,9 +224,9 @@ Harness：提供统一契约与横向支撑，而非强制转发。
 
 Persistence、Event、Extension、Governance 为跨模块能力或能力域，不需要额外提升为新的顶级产品层。
 
-## 7. 未来实现中的代码依赖约束
+## 7. 代码依赖约束
 
-当 Phase 1 真正开始后：
+当前模型实现与后续功能开发均遵循：
 
 - `application/cli` 应依赖 Agent 公共入口，而不直接访问供应商模型 SDK。
 - `agent` 协调 Execution，不把 Loop 的决策策略放进 SessionAgent。
@@ -253,7 +235,7 @@ Persistence、Event、Extension、Governance 为跨模块能力或能力域，�
 - `composition` 负责集中选择和装配默认实现，可依赖其装配所需的实现。
 - 读取环境变量及密钥仅发生在明确的配置边界，核心 Loop 不读取环境配置。
 
-**本章节是后续开发的约束，不要求 Phase 0 写这些依赖的代码。**
+**除当前已实现的模型契约与 Adapter 外，本章节不授权创建后续组件。**
 
 ## 8. 设计判断与后续更新
 
@@ -266,7 +248,7 @@ Persistence、Event、Extension、Governance 为跨模块能力或能力域，�
 文档粒度优先采用**职责明确、可以单独开发和维护的模块**，不要求每个源文件都有文档，也不因为独立 npm package 尚未拆分就把所有说明集中到根目录。
 
 - **一级模块**：`src/application`、`src/agent`、`src/execution`、`src/harness`、`src/runtime`、`src/composition` 均必须有自己的 `README.md` 与 `changes.md`，Phase 0 即交付。
-- **独立子能力**：例如未来的 `src/runtime/model`、`src/application/cli`、`src/execution/loops`，若已形成独立职责与开发范围，随代码落地本地文档。普通工具代码、组织性目录不必另建两份文档。
+- **独立子能力**：例如当前的 `src/runtime/model`、后续的 `src/application/cli`、`src/execution/loops`，若已形成独立职责与开发范围，随代码落地本地文档。普通工具代码、组织性目录不必另建两份文档。
 - **独立 package**：如果未来真实拆分成 `packages/<name>`，模块文档跟随其 package 根目录；这是**位置变化**，不是必须先上 Monorepo 的理由。
 - **文档权威性**：`docs/architecture.md` 管全局职责与依赖，模块 `README.md` 管当前模块实现，模块 `changes.md` 管本模块修改历史，`docs/changes.md` 管全局/跨模块历史。
 

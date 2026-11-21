@@ -2,9 +2,9 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Phase 0 工程基线已完成；当前补充 Logging 基础设施，尚未启用 Phase 1 业务开发。**
+**项目状态：Phase 0 与 Logging 基线已完成，当前交付 Phase 1.1 Model System。**
 
-当前已建立 TypeScript / Node.js 工程、六个职责模块的文档骨架和基础离线验证；本次增加统一 Logger 门面与结构化日志能力，**尚不提供可对话的 Agent、模型调用或 CLI 交互**。工程历史验收见 [Phase 0](docs/phase-0.md)，当前范围见 [Coding Agent 工作说明](docs/AGENT.md)，日志接口与配置见 [Runtime Logging](src/runtime/logging/README.md)。
+当前提供统一 ModelClient 契约和 OpenAI-compatible Chat Completions Adapter，支持非流式/流式文本、Tool Calling、参数映射、取消/超时、单实例并发及统一生命周期日志。**Agent Loop、Session、工具执行和 CLI 交互尚未实现。** 当前范围和实际验收结果见 [Phase 1.1](docs/phase-1.1.md)，工程历史验收见 [Phase 0](docs/phase-0.md)。
 
 ## 产品定位
 
@@ -24,12 +24,12 @@ Easy Agent 首先是一个能够直接使用的 Agent 产品，同时为开发�
 
 | 使用方式 | 目标能力                     | 预计阶段         |
 | -------- | ---------------------------- | ---------------- |
-| CLI      | 配置模型、连续输入、接收回复 | Phase 1          |
+| CLI      | 配置模型、连续输入、接收回复 | 后续 Phase 1     |
 | SDK      | 开发者在应用中调用 Agent     | Phase 2 逐步完善 |
 | HTTP API | 远程交互及 SSE 流式输出      | Phase 2          |
 | Web UI   | 可视化交互                   | 后续阶段         |
 
-## 当前阶段：仅面向开发的工程使用
+## 工程使用
 
 开发环境使用 **Node.js 26.x LTS 与 npm**；`.nvmrc` 指定 Node.js 26，`package.json` 限定 `>=26.0.0 <27`。工程为单一私有 npm 包，采用 ESM；Logging 使用 Pino 运行时依赖，工程工具保留为开发依赖。
 
@@ -53,9 +53,9 @@ npm test
 | `npm run build`        | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
 | `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
-smoke test 验证源码入口的 ESM 导入和构建入口 `dist/index.js` 的原生 JavaScript 加载。Logging 测试覆盖真实日志输出、级别过滤、模块子日志、错误与敏感信息处理；这些验证不代表 Agent 业务已经实现。
+`src/index.ts` 导出 Logger/createLogger、ModelClient 相关契约、ModelError 和 OpenAICompatibleModelClient。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离及日志安全。该私有包尚未作为 Agent SDK 发布。
 
-安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。当前没有 `.env`、模型配置或 CLI 对话命令。
+安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。Provider 配置通过实例构造参数显式传入；不自动读取 `.env`，没有 CLI 对话命令。
 
 Git 主分支为 `main`，远程 `origin` 为 `git@github.com:header-files/Easy-Agent.git`。工程版本与配置细则见 [工程规范](docs/conventions.md)。
 
@@ -75,30 +75,67 @@ workerLogger.debug('准备处理任务');
 
 通过 `LOG_LEVEL` 或显式初始化配置控制日志级别；配置优先级、结构化错误与敏感信息处理规则见 [Runtime Logging](src/runtime/logging/README.md)。当前没有文件轮转、远端日志服务或 trace 系统。
 
+## ModelClient 使用
+
+构建后可在 Node.js ESM 中导入组件。在调用方初始化边界读取配置；model 由每次请求指定，实例可以复用：
+
+```javascript
+import { createLogger, OpenAICompatibleModelClient } from './dist/index.js';
+
+const logger = createLogger({ module: 'example' });
+const client = new OpenAICompatibleModelClient({
+  ...(process.env.OPENAI_API_KEY ? { apiKey: process.env.OPENAI_API_KEY } : {}),
+  baseURL: 'https://api.openai.com/v1',
+  logger,
+});
+
+const request = {
+  model: 'your-model-id',
+  messages: [{ role: 'user', content: '你好' }],
+  parameters: { temperature: 0.7, maxOutputTokens: 256, top_p: 0.9 },
+};
+
+const response = await client.generate(request, { timeoutMs: 30_000 });
+process.stdout.write(`${response.message.content ?? ''}\n`);
+
+for await (const event of client.stream(request, { timeoutMs: 30_000 })) {
+  if (event.type === 'text_delta') process.stdout.write(event.text);
+  if (event.type === 'message_end') process.stdout.write('\n');
+}
+```
+
+ModelClient 默认使用统一 Logger，也可以通过 `logger` 配置注入同一门面的自定义实现；运行日志走 stderr。生命周期日志仅记录诊断元数据，不记录消息、工具参数、请求/响应正文或认证配置。
+
+示例中的模型标识需替换为目标 Provider 支持的值；真实调用需要相应服务配置。常规测试无需 API Key 或外部模型连接。
+
+生成参数统一位于 `parameters`：maxOutputTokens 默认映射 max_completion_tokens，可通过实例配置 maxTokensField 选择 max_tokens；其他扩展字段保留原名和值。核心字段覆盖、重复 token 限制配置和已知不支持的能力会明确报错。
+
+同一实例可并发调用 generate/stream；每个调用独立处理取消、超时、文本和工具增量。Tool Calling 只返回模型提出的调用数据，参数保留原始字符串；工具实际执行仍待后续阶段。接口细则见 [模型公共契约](src/harness/contracts/model/README.md)，配置、错误、工具结果表示与兼容边界见 [Runtime Model](src/runtime/model/README.md)。
+
 ## 当前目录
 
 ```text
 easy-agent/
 ├── package.json / package-lock.json
 ├── tsconfig.json / tsconfig.build.json
-├── eslint.config.js
-├── .prettierrc.json / .prettierignore
+├── eslint.config.js / .prettierrc.json / .prettierignore
 ├── .gitignore / .nvmrc
 ├── AGENTS.md / .cursor/rules/easy-agent.mdc
 ├── README.md / docs/
 ├── src/
 │   ├── index.ts
-│   ├── application/   # 除 Runtime Logging 外，职责模块目前均仅有文档
-│   ├── agent/
-│   ├── execution/
-│   ├── harness/
+│   ├── application/               # 仅 README.md / changes.md
+│   ├── agent/                     # 仅 README.md / changes.md
+│   ├── execution/                 # 仅 README.md / changes.md
+│   ├── harness/contracts/model/   # 公共模型契约与就近文档
 │   ├── runtime/
-│   │   └── logging/   # 统一 Logger、Pino 适配与就近 README/changes
-│   └── composition/
-└── tests/             # 工程 smoke 和 Logging 离线测试
+│   │   ├── logging/               # Logger 门面、Pino 适配与就近文档
+│   │   └── model/                 # Chat Completions Adapter 与就近文档
+│   └── composition/               # 仅 README.md / changes.md
+└── tests/                         # 工程 smoke、Logging、契约、Adapter、并发及日志集成
 ```
 
-安装目录 `node_modules/` 和构建输出 `dist/` 均由工具生成，已忽略，不纳入版本控制。未来能力的子目录随实际实现创建。
+六个一级模块均有 README/changes。安装目录 `node_modules/` 和构建输出 `dist/` 已忽略，不纳入版本控制；未来能力随实际开发创建。
 
 ## 整体架构
 
@@ -119,13 +156,14 @@ easy-agent/
 - [Coding Agent 工作规范](docs/AGENT.md)
 - [系统架构与目标目录结构](docs/architecture.md)
 - [技术栈、代码与文档规范](docs/conventions.md)
-- [Phase 0：已完成的工程基线与历史验收](docs/phase-0.md)
-- [Runtime Logging：当前日志能力](src/runtime/logging/README.md)
+- [Phase 0：已完成的工程基线与验收](docs/phase-0.md)
+- [Runtime Logging：统一日志基础设施](src/runtime/logging/README.md)
+- [Phase 1.1：当前 Model System 范围与验收](docs/phase-1.1.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前只补充 Logging 基础设施，不自动进入 Phase 1。** 范围以 `docs/AGENT.md` 和 Logging 就近说明为准；`docs/phase-0.md` 保留工程基线，`docs/roadmap.md` 不是自动接续开发清单。
+**当前执行范围以 `docs/phase-1.1.md` 为准。** 只完成本阶段，不自动进入 Phase 1.2；`docs/roadmap.md` 不是自动接续开发清单。
 
 ## 文档维护原则
 
