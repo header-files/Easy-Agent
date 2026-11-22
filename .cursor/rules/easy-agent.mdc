@@ -1,11 +1,11 @@
 ---
-description: Easy Agent project-wide architecture, current Phase 1.2 and change history policy
+description: Easy Agent project-wide architecture, current Phase 1.3 and change history policy
 alwaysApply: true
 ---
 
-这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-1.2.md`**，需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
+这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-1.3-agent-loop.md`**，需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
 
-**当前仅执行 Phase 1.2 Tool Runtime：Harness 工具契约、Runtime 注册/查找/注销、严格参数校验、工具执行、结果转换、独立取消/超时、并发与在途快照隔离及离线测试。不实现 Agent Loop、Engine、Session、完整模型—工具循环、CLI、MCP、Skill、Sandbox 或 Approval，不自动进入 Phase 1.3。** Phase 0、Logging 与 Phase 1.1 Model System 是已完成基线。Phase 1 顺序见 `docs/phase-1.md`；不修改 ModelClient 公共契约。
+**当前仅执行 Phase 1.3 Agent Loop，唯一阶段依据为 `docs/phase-1.3-agent-loop.md`：Harness 通用契约与 Execution DefaultAgentLoop，默认流式模型→串行工具→模型闭环、完整上下文、事件和控制。** 通用 Context.model 可选，默认实现运行时才要求模型配置。策略只从 extensions.defaultAgentLoop 读取；模型额外重试默认 2，仅限当前尝试无公开输出且明确可重试；主动取消和工具调用不重试。无模型/工具/循环总次数上限，无默认全局超时。不修改 Model/Tool 既有公共契约，不实现 Engine、Session 调度、SSE/Event Bus、工具并行或 CLI，不自动进入 Phase 1.4。
 
 运行日志统一使用 `src/runtime/logging` 的 Logger 门面、结构化字段和 stderr；涉及日志先读其 README/changes。不直接依赖 Pino，不记录密钥、完整消息或请求/响应正文；Model/Tool 生命周期日志遵循各能力域的字段白名单，不记录原始参数、工具结果或异常载荷。文件轮转、远端服务、Session 事件与 trace 系统不在当前范围。
 

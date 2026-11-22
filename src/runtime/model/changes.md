@@ -13,3 +13,22 @@
 - 影响范围：本能力域、Runtime 父模块、Harness Model 契约、公开入口和模型与生命周期日志离线测试；不改变 Logging 契约，不引入 Agent、Session 或工具执行。
 - 验证：类型检查、Lint、格式检查、构建及完整离线测试全部通过，整仓 75 项通过、0 失败、0 跳过；其中模型单元/协议 19 项、模型集成/并发 15 项、模型生命周期日志 16 项。覆盖参数映射/冲突、四类消息、工具增量、资源释放、请求快照、独立日志关联、安全元数据与日志后端故障隔离；完整构成见 [Phase 1.1 验收](../../../docs/phase-1.1.md)。
 - 关联：[Harness Model](../../harness/contracts/model/changes.md)、[项目级记录](../../../docs/changes.md)、[Phase 1.1](../../../docs/phase-1.1.md)。
+
+## 2026-11-22 — 流式工具片段的空白标识不构成协议错误
+
+- 主题 ID：`runtime.model-system`
+- 变更前：流式 `tool_calls` 片段只要带有 `id` 或 `function.name`，就必须是非空且与已确定值一致；`null`、空字符串或空白字符串会立即返回 `invalid_response`。
+- 变更后：这类空白标识视为该片段尚未提供字段，不写入增量事件，也不覆盖同一 index 上已确定的 id/name。非空白冲突、结束时缺少有效 id/name/arguments，以及重复调用 ID 仍返回 `invalid_response`。
+- 修改原因：兼容服务在后续工具片段中重复 `id: ""` 和 `name: ""`，真实 `qwen-max` 流式工具调用因此在参数拼接前失败。
+- 影响范围：`stream-state.ts` 的单请求工具组装、模型流式测试和模块说明；Harness Model 公共契约、非流式响应映射和日志字段不变。
+- 现行说明：[README.md](README.md)、[Phase 1.1 流式协议](../../../docs/phase-1.1.md)。
+
+- 审查验证（2026-11-22）：修复后全仓 `npm test` 147 项通过；此前 Phase 1.3 交付时的 146 项验收继续作为独立历史保留。
+
+### 2026-11-23 — 补充固定回归用例与 Runtime/Loop 链路验证
+
+- 验证范围：沿用上述空白标识修复，不新增协议或生产功能。单元回归补充仅空白标识直到结束、先空白后有效标识、空白片段不覆盖已确定值，以及非空 name 冲突仍拒绝等边界。
+- 集成策略：注入兼容服务形式的 SSE 字节流，使用真实 OpenAICompatibleModelClient、ToolRegistry/ToolExecutor 和 DefaultAgentLoop；验证空白标识被忽略、原始参数片段完整拼接、工具真实执行、结果回填、再次模型调用及正常 loop_end。
+- 执行方式：用例写入现有单元/集成测试文件，离线执行，不依赖真实 API Key 或外部服务；不以此前内存检查替代仓库固定回归用例。
+- 已执行定向验证（2026-11-23）：`node --test tests/model-runtime.test.ts` 23 项通过；`node --test tests/agent-loop-integration.test.ts` 8 项通过。新增 3 项顶层单元用例与 1 项顶层链路用例，并扩展既有最终缺失字段的负例表。
+- 最终验证（2026-11-23）：`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 均成功退出；全仓 151 项通过、0 失败、0 跳过（既有审查基线 147 项 + 新增单元 3 项 + 链路集成 1 项）。本轮仅补验证；2026-11-22 的 147 项审查及 Phase 1.3 的 146 项交付验收分别保留，不覆盖历史数字。

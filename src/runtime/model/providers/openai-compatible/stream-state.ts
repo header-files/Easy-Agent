@@ -14,6 +14,11 @@ import {
 } from './errors.ts';
 import { finishReason, metadata, usage } from './response.ts';
 
+/** Null or blank text means this fragment did not supply the field. */
+function placeholder(value: unknown): boolean {
+  return value === null || (typeof value === 'string' && value.trim() === '');
+}
+
 interface ToolBuffer {
   id?: string;
   name?: string;
@@ -126,7 +131,7 @@ export class StreamState {
       type: 'tool_call_delta',
       index: value.index,
     };
-    if (value.id !== undefined) {
+    if (value.id !== undefined && !placeholder(value.id)) {
       if (
         !nonempty(value.id) ||
         (current.id !== undefined && current.id !== value.id)
@@ -136,7 +141,7 @@ export class StreamState {
     }
     if (record(value.function)) {
       const fn = value.function;
-      if (fn.name !== undefined) {
+      if (fn.name !== undefined && !placeholder(fn.name)) {
         if (
           !toolName(fn.name) ||
           (current.name !== undefined && current.name !== fn.name)

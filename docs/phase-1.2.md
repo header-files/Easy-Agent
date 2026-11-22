@@ -4,6 +4,8 @@
 >
 > 交付状态：**2026-11-22 已完成 Phase 1.2 实现与离线工程验收**。109 项测试通过、0 失败、0 跳过；仅交付 Tool Runtime，不自动进入 Phase 1.3。
 
+> 本文件保留 **Phase 1.2 的实现基线与 109 项历史验收**。当前阶段已转为 [Phase 1.3 Agent Loop](phase-1.3-agent-loop.md)；以下“不实现循环”等限制针对 Tool Runtime 自身与当时阶段，Tool 公共契约继续作为该能力的权威定义。
+
 ## 1. 目标与职责
 
 建立独立可用、可替换且支持并发的本地 TypeScript 工具组件，为后续 Agent Loop 提供 ToolExecutor：

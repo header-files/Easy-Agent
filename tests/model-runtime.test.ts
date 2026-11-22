@@ -462,6 +462,215 @@ test('流式工具字段可以迟到，多工具按照index组装且保留原始
   );
 });
 
+test('流式工具片段的空白 id 和 name 不覆盖已确定值', async () => {
+  const frames = [
+    chunk({
+      tool_calls: [
+        {
+          index: 0,
+          id: 'call-1',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '' },
+        },
+      ],
+    }),
+    chunk({
+      tool_calls: [
+        {
+          index: 0,
+          id: '',
+          type: 'function',
+          function: { name: '', arguments: '{"city":"北京"}' },
+        },
+      ],
+    }),
+    chunk({
+      tool_calls: [{ index: 0, id: null, function: { name: null } }],
+    }),
+    chunk({}, 'tool_calls'),
+    '[DONE]',
+  ];
+  const events = await collect(streamClient(frames).stream(request));
+  const deltas = events.filter((event) => event.type === 'tool_call_delta');
+  assert.equal(deltas[1]?.type, 'tool_call_delta');
+  if (deltas[1]?.type === 'tool_call_delta') {
+    assert.equal(deltas[1].id, undefined);
+    assert.equal(deltas[1].name, undefined);
+    assert.equal(deltas[1].argumentsDelta, '{"city":"北京"}');
+  }
+  const last = events.at(-1);
+  assert.equal(last?.type, 'message_end');
+  if (last?.type !== 'message_end') throw new Error('missing end');
+  assert.deepEqual(last.response.message.toolCalls, [
+    {
+      id: 'call-1',
+      name: 'get_weather',
+      argumentsJson: '{"city":"北京"}',
+    },
+  ]);
+});
+
+const toolFieldPlaceholders = [
+  { label: 'null', value: null },
+  { label: 'empty string', value: '' },
+  { label: 'space', value: ' ' },
+  { label: 'tab', value: '\t' },
+  { label: 'newline', value: '\r\n' },
+  { label: 'Unicode whitespace', value: '\u00a0' },
+] as const;
+
+test('已确定工具标识后的各种占位值均省略对应增量字段且不覆盖最终值', async () => {
+  for (const { label, value } of toolFieldPlaceholders) {
+    const events = await collect(
+      streamClient([
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-stable',
+              function: { name: 'stable_tool', arguments: '{"value":' },
+            },
+          ],
+        }),
+        chunk({
+          tool_calls: [
+            { index: 0, id: value, function: { name: value, arguments: '1}' } },
+          ],
+        }),
+        chunk({}, 'tool_calls'),
+        '[DONE]',
+      ]).stream(request),
+    );
+    const deltas = events.filter((event) => event.type === 'tool_call_delta');
+    assert.equal(deltas.length, 2, label);
+    const placeholder = deltas[1]!;
+    assert.equal(Object.hasOwn(placeholder, 'id'), false, label);
+    assert.equal(Object.hasOwn(placeholder, 'name'), false, label);
+    assert.equal(placeholder.argumentsDelta, '1}', label);
+    const last = events.at(-1);
+    assert.equal(last?.type, 'message_end', label);
+    if (last?.type !== 'message_end') throw new Error('missing end');
+    assert.deepEqual(
+      last.response.message.toolCalls,
+      [
+        {
+          id: 'call-stable',
+          name: 'stable_tool',
+          argumentsJson: '{"value":1}',
+        },
+      ],
+      label,
+    );
+  }
+});
+
+test('首个工具片段的占位标识可分别在后续片段补齐且参数保持原始拼接', async () => {
+  for (const { label, value } of toolFieldPlaceholders) {
+    const events = await collect(
+      streamClient([
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: value,
+              function: { name: value, arguments: '{"value":' },
+            },
+          ],
+        }),
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call-late',
+              function: { name: value, arguments: '1' },
+            },
+          ],
+        }),
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: value,
+              function: { name: 'late_tool', arguments: '}' },
+            },
+          ],
+        }),
+        chunk({}, 'tool_calls'),
+        '[DONE]',
+      ]).stream(request),
+    );
+    const deltas = events.filter((event) => event.type === 'tool_call_delta');
+    assert.equal(deltas.length, 3, label);
+    assert.equal(Object.hasOwn(deltas[0]!, 'id'), false, label);
+    assert.equal(Object.hasOwn(deltas[0]!, 'name'), false, label);
+    assert.equal(deltas[1]!.id, 'call-late', label);
+    assert.equal(Object.hasOwn(deltas[1]!, 'name'), false, label);
+    assert.equal(Object.hasOwn(deltas[2]!, 'id'), false, label);
+    assert.equal(deltas[2]!.name, 'late_tool', label);
+    const last = events.at(-1);
+    assert.equal(last?.type, 'message_end', label);
+    if (last?.type !== 'message_end') throw new Error('missing end');
+    assert.deepEqual(
+      last.response.message.toolCalls,
+      [{ id: 'call-late', name: 'late_tool', argumentsJson: '{"value":1}' }],
+      label,
+    );
+  }
+});
+
+test('占位片段不会重置工具标识的一致性校验，非空 id 或 name 冲突仍失败', async () => {
+  for (const field of ['id', 'name'] as const) {
+    const events: ModelStreamEvent[] = [];
+    const frames = [
+      chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call-stable',
+            function: { name: 'stable_tool', arguments: '{' },
+          },
+        ],
+      }),
+      chunk({
+        tool_calls: [
+          { index: 0, id: null, function: { name: ' \t', arguments: '}' } },
+        ],
+      }),
+      chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: field === 'id' ? 'call-conflict' : 'call-stable',
+            function: {
+              name: field === 'name' ? 'conflict_tool' : 'stable_tool',
+            },
+          },
+        ],
+      }),
+      chunk({}, 'tool_calls'),
+      '[DONE]',
+    ];
+    await assert.rejects(
+      async () => {
+        for await (const event of streamClient(frames).stream(request))
+          events.push(event);
+      },
+      code('invalid_response'),
+      field,
+    );
+    assert.equal(
+      events.some((event) => event.type === 'tool_call_delta'),
+      true,
+      field,
+    );
+    assert.equal(
+      events.some((event) => event.type === 'message_end'),
+      false,
+      field,
+    );
+  }
+});
+
 test('流式拒绝缺失必需工具字段、重复工具ID、未知数据和结束后的增量', async () => {
   const badFrames: unknown[][] = [
     [
@@ -487,11 +696,44 @@ test('流式拒绝缺失必需工具字段、重复工具ID、未知数据和结
       '[DONE]',
     ],
     [chunk({}, 'tool_calls'), '[DONE]'],
+    [
+      chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: ' ',
+            function: { name: 'get_weather', arguments: '{}' },
+          },
+        ],
+      }),
+      chunk({}, 'tool_calls'),
+      '[DONE]',
+    ],
     [chunk({}, 'stop'), chunk({ content: 'late' }), '[DONE]'],
     [{ choices: [] }, '[DONE]'],
     ['not JSON'],
     ['[DONE]'],
   ];
+  for (const { value } of toolFieldPlaceholders) {
+    for (const missing of ['id', 'name'] as const) {
+      badFrames.push([
+        chunk({
+          tool_calls: [
+            {
+              index: 0,
+              id: missing === 'id' ? value : 'call-present',
+              function: {
+                name: missing === 'name' ? value : 'present_tool',
+                arguments: '{}',
+              },
+            },
+          ],
+        }),
+        chunk({}, 'tool_calls'),
+        '[DONE]',
+      ]);
+    }
+  }
   for (const frames of badFrames)
     await assert.rejects(
       collect(streamClient(frames).stream(request)),

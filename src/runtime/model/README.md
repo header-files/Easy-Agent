@@ -72,7 +72,7 @@ for await (const event of client.stream({
 
 SSE 按 UTF-8 增量解码，支持任意字节分片、LF/CRLF/CR 行结束、注释和多行 `data`。正常流只产生一次 `message_start`，随后按观察顺序产生文本/工具增量；要求有效 `finish_reason` 和 `[DONE]` 才能正常完成，EOF 截断不会被当作成功。`choices: []` 的最终 Usage 块可以位于 finish 块和 `[DONE]` 之间。
 
-每个 ToolCall 按当前请求的 `index` 独立组装；id/name 可以后到，但已确定的值不能被不同值覆盖。参数片段按顺序连接，最终工具列表按 index 排列且不暴露 index。最终必须实际收到有效 id/name 和 arguments 字符串（允许原始字符串不是合法 JSON）；不能伪造缺失工具字段或重复调用 ID。
+每个 ToolCall 按当前请求的 `index` 独立组装；id/name 可以后到，但已确定的值不能被不同值覆盖。片段中的 `null` 或空白 id/name 视为尚未提供：不写入对应增量，也不覆盖已确定值。参数片段按顺序连接，最终工具列表按 index 排列且不暴露 index。最终必须实际收到有效 id/name 和 arguments 字符串（允许原始字符串不是合法 JSON）；空白片段不能代替这些必需字段，也不能伪造缺失工具字段或重复调用 ID。
 
 正常完成后先释放 reader、超时与取消资源，再发送最后且唯一的 `message_end`。失败、取消和超时以 `ModelError` 抛出，不产生成功结束事件。流内错误帧也会归一为异常。未正常结束的 ToolCall 不能作为已完成调用执行。
 
@@ -137,5 +137,7 @@ const client = new OpenAICompatibleModelClient({ logger });
 | `call-context.ts` / `errors.ts`         | 单请求取消、超时、统一错误          |
 
 在仓库根目录运行 `node --test tests/model-runtime.test.ts tests/model-integration.test.ts tests/model-logging.test.ts`。单元测试覆盖真实转换逻辑；集成测试注入 fetch 和标准 Response/ReadableStream，覆盖交错并发、逐字节 SSE、取消、超时、提前退出与异常隔离，不需要真实 Key 或外部服务。`npm test` 包含契约和构建导入检查。项目完整质量命令见 [工程规范](../../../docs/conventions.md)。
+
+空白工具标识的仓库固定回归用例位于 `tests/model-runtime.test.ts`：覆盖 null、空字符串、空格、制表/换行及 Unicode 空白片段不覆盖既有标识，初始占位的 id/name 可分别后补，最终缺失或非空冲突仍被拒绝，参数按原始片段拼接。`tests/agent-loop-integration.test.ts` 使用真实 Model/Tool Runtime 与 DefaultAgentLoop，验证两个工具 index 交错分片、占位标识不进入增量字段、按 index 执行工具、完整结果回填及最终回答，且不触发重试。
 
 真实服务调用未作为本次验收条件，尚未验证全部第三方非标准扩展。完整非目标见 [Phase 1.1](../../../docs/phase-1.1.md)，历史见 [changes.md](changes.md)。协议依据：[Chat Completions API](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)、[Streaming events](https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events)。

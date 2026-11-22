@@ -19,3 +19,8 @@ export {
   toModelToolDefinition,
   toToolResultMessage,
 } from './runtime/tool/index.ts';
+export * from './harness/contracts/agent-loop/index.ts';
+export {
+  DefaultAgentLoop,
+  type DefaultAgentLoopOptions,
+} from './execution/loops/index.ts';

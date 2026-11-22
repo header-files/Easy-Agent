@@ -146,3 +146,38 @@
 - 模块记录：[Harness](../src/harness/changes.md)、[Tool Contracts](../src/harness/contracts/tool/changes.md)、[Runtime](../src/runtime/changes.md)、[Runtime Tool](../src/runtime/tool/changes.md)。
 - 实际验收：2026-11-22，类型检查、lint（0 警告）、全仓格式检查、构建及离线测试全部通过；109 项通过、0 失败、0 跳过（既有 76 项 + Tool 33 项）。Model 源码与公共契约未改的差异检查通过；命令、构成和验证边界见 [Phase 1.2 验收记录](phase-1.2.md#实际验收记录)。
 - 现行规范：[Tool Contracts](../src/harness/contracts/tool/README.md)、[Runtime Tool](../src/runtime/tool/README.md)、[工程规范](conventions.md)。
+
+### 2026-11-22 — 确认 Phase 1.3 唯一 Agent Loop 设计基线
+
+- 主题 ID：`delivery.phase-scope`
+- 变更前：Phase 1.2 Tool Runtime 已完成；Agent Loop 尚无代码实现，架构和阶段索引保留下一阶段的建议定位，部分职责说明使用 Basic Loop 名称。
+- 变更后：用户授权以 [Phase 1.3 Agent Loop 技术方案](phase-1.3-agent-loop.md) 为唯一阶段依据：Harness 定义算法无关协议，Execution 实现 DefaultAgentLoop；统一异步事件流、默认模型流式调用、串行工具、消息回填和完整上下文。自定义实现不必使用模型或工具，不要求复用默认实现。
+- 修改原因：先明确通用 Loop 与默认策略的边界，再形成已有 Model/Tool 能力上的完整循环；避免把旧草案或建议命名与本次已确认设计并列使用。
+- 影响范围：阶段入口、架构、工程规范、README、阶段索引/路线图、Harness AgentLoop 与 Execution Loops 文档；Application、Agent、Composition 仅同步当前未实现状态，无虚构业务变更日志。
+- 授权范围：只完成 Phase 1.3；Engine 仍属 Phase 1.4，Session 调度、SSE/Event Bus、工具并行、审批与持久化均未实现。Phase 1.1/1.2 历史验收分别保留，不以原 109 项测试代替当前验收。
+- 模块记录：[Harness](../src/harness/changes.md)、[AgentLoop Contracts](../src/harness/contracts/agent-loop/changes.md)、[Execution](../src/execution/changes.md)、[Execution Loops](../src/execution/loops/changes.md)。
+- 现行依据：[唯一阶段设计](phase-1.3-agent-loop.md)、[架构](architecture.md)、[阶段索引](phase-1.md)。
+
+### 2026-11-22 — 分离通用 Loop 协议与默认循环策略
+
+- 主题 ID：`execution.agent-loop-baseline`
+- 变更前：已有 ModelClient、ToolRegistry/Executor 和桥接数据类型，但尚无串联策略或统一 Loop 输入/事件/结果；早期草案中的 BasicLoop、模式切换和次数限制并未形成已实现行为。
+- 变更后：AgentLoopContext 将输入、历史、配置、控制与可选元数据分开；通用 model 配置可选，DefaultAgentLoop 才要求模型名。正常结果仅由最后的 loop_end 携带，默认返回权威文本及完整已确认历史；异常/取消通过迭代抛出。每个 run 的工作消息、模型事件与工具结果独立，同一 run 内多工具严格串行。
+- 策略取舍：只使用 ModelClient.stream()；专属选项放在 Context 的 extensions.defaultAgentLoop，模型额外重试默认 2，只有未公开当前尝试的模型/展示事件且错误明确可重试时允许。正常往返不计重试，工具不重试；不设模型调用、工具调用或迭代总上限，不设默认全局超时。
+- 资源与依赖：运行使用同步调用方取消状态的有效 signal，传递给两个依赖；提前结束迭代取消内部控制，尽力请求活动模型流关闭并接管迟到拒绝，不无限等待不合作的 finalizer，不修改调用方 signal。单次超时沿用既有 Model/Tool 支持的正整数范围，完整 data 作为不透明只读上下文保留；具体边界见模块说明。
+- 兼容处理：已确认的空 assistant 文本可在历史中保留 null；仅传给 ModelClient 的独立请求副本将此空文本转换为空字符串，以兼容已有 Model 请求校验。内部历史、最终 updatedContext 和调用方输入保持原语义，不修改 Phase 1.1/1.2 公共契约。
+- 修改原因：使自定义算法保持独立，默认策略可真实验证完整闭环，同时保证流式输出不重复、工具错误语义一致、取消/清理可靠且无隐藏次数上限。
+- 影响范围：AgentLoop Contracts、DefaultAgentLoop、离线契约/循环/事件/重试/取消/清理/并发及真实 Adapter 兼容测试；模块细节见 [AgentLoop Contracts](../src/harness/contracts/agent-loop/README.md) 和 [Execution Loops](../src/execution/loops/README.md)。
+- 实际验收：2026-11-22，typecheck、lint（0 警告）、全仓格式检查、build 和 test 全部通过；146 项通过、0 失败、0 跳过（既有 109 项 + Agent Loop 37 项）。包含暂停事件后的不合作 finalizer、验证失败清理、原错误保留与真实 Runtime 离线兼容回归；完整构成和能力边界见 [唯一阶段文档的实际验收记录](phase-1.3-agent-loop.md#十一实际交付与验收记录)。
+
+### 2026-11-22 — 流式工具片段的空白标识视为尚未提供
+
+- 主题 ID：`runtime.model-system`
+- 变更前：OpenAI-compatible 流式解析把工具片段中的 `null`、空字符串或空白 `id` / `function.name` 直接判为 `invalid_response`。
+- 变更后：这些空白值不进入增量事件，也不覆盖同一 index 已确定的 id/name。真正冲突的非空值、结束时缺失字段和重复调用 ID 仍拒绝。
+- 修改原因：真实兼容服务会在后续工具片段重复空标识，`qwen-max` 的流式工具调用因此无法进入 Agent Loop 的工具执行。
+- 影响范围：Runtime Model 的流式组装；Harness 公共契约、非流式映射、Tool Runtime 和 Agent Loop 策略不变。
+- 模块记录：[Runtime Model](../src/runtime/model/changes.md)、[Runtime](../src/runtime/changes.md)。
+- 审查验证（2026-11-22）：修复后全仓 `npm test` 147 项通过；此前 Phase 1.3 的 146 项交付验收继续保留。
+- 验证追记（2026-11-23）：补齐仓库单元测试与真实 Runtime + Loop 离线链路回归，五项工程检查全部成功；全仓 151 项通过、0 失败、0 跳过（既有 147 项 + 单元 3 项 + 集成 1 项）。具体边界、命令与结果见 [Model 修复验证时间线](../src/runtime/model/changes.md)，本轮不新增协议或生产功能。
+- 现行规范：[Runtime Model](../src/runtime/model/README.md)、[Phase 1.1](phase-1.1.md)。

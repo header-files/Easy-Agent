@@ -47,3 +47,13 @@
 - 影响范围：工具公共接口、契约测试、本地文档和 Harness 父模块说明；未修改 Phase 1.1 Model Contracts，未引入 Agent Loop 或模型—工具循环。
 - 依据/验证：用户提供的 Phase 1.2 开发任务书；独立严格类型检查通过，`node --test tests/tool-contracts.test.ts` 6 项通过，定向 ESLint/格式检查通过。基础契约验收完成后才开始 Runtime 编码。
 - 现行说明：[Tool Contracts](contracts/tool/README.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。
+
+### 2026-11-22 — 引入 Phase 1.3 算法无关的 AgentLoop 公共契约
+
+- 主题 ID：`harness.agent-loop-contracts`
+- 变更前：Harness 已提供模型与工具接口，没有统一 Loop 输入、事件流和最终结果协议。
+- 变更后：新增 `contracts/agent-loop` 四组公共契约；run 统一返回 AsyncIterable，正常终止结果仅来自最终 loop_end.result；模型/工具配置和统计均不强制自定义实现提供。
+- 修改原因：按用户确认的唯一 Phase 1.3 方案建立默认策略及第三方 Loop 共用的最小边界，保留策略与 Execution Engine 机制分离。
+- 影响范围：AgentLoop 类型、公共导出、契约测试和 Harness 父模块说明；直接引用已有 Model/Tool 类型，不修改 Phase 1.1/1.2 契约；不引入旧版 BasicLoop、loop_result、getResult 或总调用上限。
+- 依据/验证：独立严格类型检查通过，`node --test tests/agent-loop-contracts.test.ts` 6 项通过；基础契约验收完成后通知 Execution 实现阶段开始。
+- 现行说明：[AgentLoop Contracts](contracts/agent-loop/README.md)、[唯一阶段方案](../../docs/phase-1.3-agent-loop.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。

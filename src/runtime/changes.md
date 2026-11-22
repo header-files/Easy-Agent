@@ -59,3 +59,13 @@ Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追
 - 影响范围：`src/runtime/tool`、Tool 公共契约和离线测试；Model 1.1 源码和契约未修改，Logging 继续作为既有基础设施复用。
 - 依据/验证：注册、Schema、执行、控制、快照、并发及 Bridge 离线测试；细节见 [Tool 时间线](tool/changes.md)，全局摘要见 [项目记录](../../docs/changes.md)。
 - 现行说明：[Tool README](tool/README.md)、[README.md](README.md)。
+
+### 2026-11-22 — 接受流式工具片段中的空白标识
+
+- 主题 ID：`runtime.model-system`
+- 变更前：Model 流式组装把工具片段里的 `null` 或空白 `id` / `name` 当作非法响应。
+- 变更后：空白标识视为尚未提供，已确定值保持不变；结束时仍要求有效 id、name 和 arguments。
+- 修改原因：兼容接口的后续工具片段会重复空标识，导致真实模型的流式工具调用无法完成。
+- 影响范围：`src/runtime/model` 的流式组装与离线测试；公共 Model 契约未改。
+- 依据/验证：细节见 [Model 时间线](model/changes.md)。
+- 现行说明：[Model README](model/README.md)。
