@@ -4,7 +4,7 @@
 
 **Phase 1.3 已实现公共契约。** 本模块定义 Loop 可接收的输入、实时事件和正常终止结果；不包含默认循环算法，不依赖 Runtime、Provider SDK、Execution Engine 或具体工具实现。
 
-唯一阶段设计见 [`docs/phase-1.3-agent-loop.md`](../../../../docs/phase-1.3-agent-loop.md)。公共入口为 [`index.ts`](index.ts)，精确定义以下四组类型：
+唯一阶段设计见 [`docs/phase-1.3.md`](../../../../docs/phase-1.3.md)。公共入口为 [`index.ts`](index.ts)，精确定义以下四组类型：
 
 | 文件与类型                                  | 主要行为                                                                               |
 | ------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -82,4 +82,4 @@ node --test tests/agent-loop-contracts.test.ts
 
 本模块只依赖 [Model Contracts](../model/README.md) 的类型和 [Tool Contracts](../tool/README.md) 的类型，不改动 Phase 1.1/1.2 接口。默认循环策略属于 Execution；Execution Engine、Session、持久化、SSE/Event Bus、Steer/Follow-up、审批、Recovery、MCP、Skill 或并行工具调度均不在本契约实现范围。
 
-相关资料：[Harness](../../README.md)、[唯一阶段设计](../../../../docs/phase-1.3-agent-loop.md)、[本模块时间线](changes.md)。
+相关资料：[Harness](../../README.md)、[唯一阶段设计](../../../../docs/phase-1.3.md)、[本模块时间线](changes.md)。

@@ -151,12 +151,12 @@
 
 - 主题 ID：`delivery.phase-scope`
 - 变更前：Phase 1.2 Tool Runtime 已完成；Agent Loop 尚无代码实现，架构和阶段索引保留下一阶段的建议定位，部分职责说明使用 Basic Loop 名称。
-- 变更后：用户授权以 [Phase 1.3 Agent Loop 技术方案](phase-1.3-agent-loop.md) 为唯一阶段依据：Harness 定义算法无关协议，Execution 实现 DefaultAgentLoop；统一异步事件流、默认模型流式调用、串行工具、消息回填和完整上下文。自定义实现不必使用模型或工具，不要求复用默认实现。
+- 变更后：用户授权以 [Phase 1.3 Agent Loop 技术方案](phase-1.3.md) 为唯一阶段依据：Harness 定义算法无关协议，Execution 实现 DefaultAgentLoop；统一异步事件流、默认模型流式调用、串行工具、消息回填和完整上下文。自定义实现不必使用模型或工具，不要求复用默认实现。
 - 修改原因：先明确通用 Loop 与默认策略的边界，再形成已有 Model/Tool 能力上的完整循环；避免把旧草案或建议命名与本次已确认设计并列使用。
 - 影响范围：阶段入口、架构、工程规范、README、阶段索引/路线图、Harness AgentLoop 与 Execution Loops 文档；Application、Agent、Composition 仅同步当前未实现状态，无虚构业务变更日志。
 - 授权范围：只完成 Phase 1.3；Engine 仍属 Phase 1.4，Session 调度、SSE/Event Bus、工具并行、审批与持久化均未实现。Phase 1.1/1.2 历史验收分别保留，不以原 109 项测试代替当前验收。
 - 模块记录：[Harness](../src/harness/changes.md)、[AgentLoop Contracts](../src/harness/contracts/agent-loop/changes.md)、[Execution](../src/execution/changes.md)、[Execution Loops](../src/execution/loops/changes.md)。
-- 现行依据：[唯一阶段设计](phase-1.3-agent-loop.md)、[架构](architecture.md)、[阶段索引](phase-1.md)。
+- 现行依据：[唯一阶段设计](phase-1.3.md)、[架构](architecture.md)、[阶段索引](phase-1.md)。
 
 ### 2026-11-22 — 分离通用 Loop 协议与默认循环策略
 
@@ -168,7 +168,7 @@
 - 兼容处理：已确认的空 assistant 文本可在历史中保留 null；仅传给 ModelClient 的独立请求副本将此空文本转换为空字符串，以兼容已有 Model 请求校验。内部历史、最终 updatedContext 和调用方输入保持原语义，不修改 Phase 1.1/1.2 公共契约。
 - 修改原因：使自定义算法保持独立，默认策略可真实验证完整闭环，同时保证流式输出不重复、工具错误语义一致、取消/清理可靠且无隐藏次数上限。
 - 影响范围：AgentLoop Contracts、DefaultAgentLoop、离线契约/循环/事件/重试/取消/清理/并发及真实 Adapter 兼容测试；模块细节见 [AgentLoop Contracts](../src/harness/contracts/agent-loop/README.md) 和 [Execution Loops](../src/execution/loops/README.md)。
-- 实际验收：2026-11-22，typecheck、lint（0 警告）、全仓格式检查、build 和 test 全部通过；146 项通过、0 失败、0 跳过（既有 109 项 + Agent Loop 37 项）。包含暂停事件后的不合作 finalizer、验证失败清理、原错误保留与真实 Runtime 离线兼容回归；完整构成和能力边界见 [唯一阶段文档的实际验收记录](phase-1.3-agent-loop.md#十一实际交付与验收记录)。
+- 实际验收：2026-11-22，typecheck、lint（0 警告）、全仓格式检查、build 和 test 全部通过；146 项通过、0 失败、0 跳过（既有 109 项 + Agent Loop 37 项）。包含暂停事件后的不合作 finalizer、验证失败清理、原错误保留与真实 Runtime 离线兼容回归；完整构成和能力边界见 [唯一阶段文档的实际验收记录](phase-1.3.md#十一实际交付与验收记录)。
 
 ### 2026-11-22 — 流式工具片段的空白标识视为尚未提供
 
@@ -181,3 +181,15 @@
 - 审查验证（2026-11-22）：修复后全仓 `npm test` 147 项通过；此前 Phase 1.3 的 146 项交付验收继续保留。
 - 验证追记（2026-11-23）：补齐仓库单元测试与真实 Runtime + Loop 离线链路回归，五项工程检查全部成功；全仓 151 项通过、0 失败、0 跳过（既有 147 项 + 单元 3 项 + 集成 1 项）。具体边界、命令与结果见 [Model 修复验证时间线](../src/runtime/model/changes.md)，本轮不新增协议或生产功能。
 - 现行规范：[Runtime Model](../src/runtime/model/README.md)、[Phase 1.1](phase-1.1.md)。
+
+### 2026-11-23 — 进入 Phase 1.4 并限定 Execution 的内存机制
+
+- 主题 ID：`execution.engine-baseline`
+- 变更前：Model、Tool 和 AgentLoop 已形成独立基线；Execution Engine 仍属后续机制，Session 和持久化未实现。
+- 变更后：用户授权以 [Phase 1.4](phase-1.4.md) 为唯一阶段依据，Harness 定义通用 Execution 协议，Execution 提供驱动任意 AgentLoop 的默认 Engine。execute 惰性且单次消费，启动前错误直接拒绝；启动后包装 Loop 事件，在确认合法结束及 EOF 后发布安全终态，并维护内存快照和取消控制。不修改 Model/Tool/AgentLoop 既有公共契约或默认循环策略。
+- 取消与清理边界：接受取消请求不等于执行已终止；仅在公开 Loop 迭代器和 Engine 自身资源完成收尾后确定终态，不承诺强制结束任意更底层能力或回滚副作用。DefaultAgentLoop 既有 best-effort 清理保持原语义；不合作的 CustomLoop.return 不能被伪装为清理成功。
+- 用户确认的快照取舍：Engine 自身状态及支持复制的数据图隔离保存，涵盖普通对象/数组、循环引用和受支持内建数据值；外部函数、闭包及带私有状态对象保留引用，其内部状态不属于隔离承诺。不冻结外部能力，也不收窄 Phase 1.3 的不透明数据类型；准确支持范围和默认实现选项由 [Engine README](../src/execution/engine/README.md) 维护。
+- 阶段边界：ExecutionEvent 仅为内存实时通知。当前不读取或写入 Session Event Log JSONL，不创建 Transaction Journal、事件重放、恢复、Event Bus/SSE、Session 队列/调度或 Phase 1.5 占位能力。未来日志物理读写归 Runtime/Persistence，可靠提交与事务协议留待后续授权。
+- 影响范围：新增 Harness Execution / Execution Engine 及其离线验证；同步项目入口、现行规范、阶段索引和模块说明。Phase 1.3 的设计与历史验收统一位于 [phase-1.3.md](phase-1.3.md)，既有 146 项阶段验收和后续 Model 修复 147/151 项验证均保留。
+- 模块记录：[Harness Execution](../src/harness/contracts/execution/changes.md)、[Harness](../src/harness/changes.md)、[Execution Engine](../src/execution/engine/changes.md)、[Execution](../src/execution/changes.md)。实际验收见 [Phase 1.4](phase-1.4.md#103-实际验收记录)。
+- 实际验收：2026-11-23，typecheck、lint、全仓格式检查、build 和 test 全部通过；187 项通过、0 失败、0 跳过（既有 151 项 + Execution 契约 5 项 + Engine 31 项）。包括无 return 钩子/继续 yield 时的真正 EOF、可移除 cancelWaiter、512 事件背压、取消与有界快照、opaque 能力引用及既有 DefaultAgentLoop 离线集成；Phase 1.1–1.3 生产源码和公共契约差异检查为空。原 146/147/151 项历史验证保留，完整命令及边界由阶段验收维护。

@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.3 Agent Loop，唯一阶段依据为 `docs/phase-1.3-agent-loop.md`；不自动接续 Phase 1.4 Execution Engine。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.4 Execution Engine，唯一阶段依据为 `docs/phase-1.4.md`；不自动接续 Phase 1.5 Agent Management。**
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-1.3-agent-loop.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1、1.2 保留各自基线与历史验收。**
+3. **`docs/phase-1.4.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1、1.2、1.3 保留各自基线与历史验收。**
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,38 +29,39 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前阶段应该做什么：Phase 1.3
+## 3. 当前阶段应该做什么：Phase 1.4
 
-在已有 Logging、Model System 和 Tool Runtime 基线上，严格执行 [唯一阶段设计](phase-1.3-agent-loop.md)，不将其他草案作为并列依据：
+在已有 Logging、Model、Tool 和 [Agent Loop](phase-1.3.md) 基线上，严格执行 [Phase 1.4 唯一设计](phase-1.4.md)：
 
-- Harness 定义与算法无关的 AgentLoopContext/Event/Result/AgentLoop，统一使用 AsyncIterable；自定义 Loop 不必使用模型、工具或默认实现。
-- 通用 Context 的模型配置可选；官方 DefaultAgentLoop 运行时要求有效模型名，构造时仅注入可复用 ModelClient、ToolRegistry、ToolExecutor 等依赖。
-- Execution 实现 DefaultAgentLoop：仅调用 ModelClient.stream()，转发 model_event 并输出展示增量，确认 message_end 后才按顺序串行执行整批工具、回填结果，再请求模型。
-- 正常唯一最终结果来自 loop_end.result；updatedContext 如提供必须为完整快照。默认实现返回最终文本和完整已确认消息历史，不修改调用方上下文。
-- 默认策略从 extensions.defaultAgentLoop 读取；maxModelRetries 默认 2，只重试尚未公开当前尝试输出且明确可重试的模型失败。主动取消和工具调用不重试，无总循环次数或默认全局超时。
-- 取消/异常通过迭代抛出，提前停止消费清理活动模型流；单实例多 run 状态隔离，单个 run 内工具严格串行。
-- 复用 Phase 1.1/1.2 实际公共契约与 Logging，完成契约、循环、事件、重试、取消、清理和并发的离线测试及文档。
+- Harness 定义 ExecutionEngine、Request、Event、Result、Snapshot 和状态/错误协议，不依赖默认 Loop 的算法。
+- Execution 实现 DefaultExecutionEngine，驱动任意符合 AgentLoop 的实现；复用既有 AgentLoopContext，不强制使用模型或工具。
+- execute 返回单消费者、单次消费、惰性启动的 AsyncIterable；启动时校验 ID/metadata/重复记录，成功注册后发 execution_start。
+- 校验 Loop 生命周期、按原语义包装 loop_event；收到合法 loop_end 后仍确认自然迭代结束。completed 映射 COMPLETED，stopped 映射 FAILED/loop_stopped；运行异常和协议违例归一为安全结果。
+- 为每个运行建立独立取消控制；cancel 接受请求与最终 CANCELLED 分开。消费者提前退出时清理公开 Loop 迭代器和自身资源，不能假装强制终止下游操作或回滚副作用。
+- 内存维护 RUNNING 与保留的终态快照，公开数据不能暴露可变内部存储。终态快照采用有界策略；运行中记录不能被淘汰。
+- 完成启动、事件/结果、取消/清理、并发、协议边界、快照保护/淘汰的离线测试及模块/项目文档。
 
-完整类型和行为只在 [Phase 1.3 Agent Loop](phase-1.3-agent-loop.md) 定义。阶段顺序仍为 1.1 Model → 1.2 Tool → **1.3 Agent Loop** → 1.4 Engine → 1.5 Agent Management → 1.6 Composition + CLI。
+当前只授权 Phase 1.4；整体顺序仍为 1.1 Model → 1.2 Tool → 1.3 Loop → **1.4 Engine** → 1.5 Agent Management → 1.6 Composition + CLI。
 
 ## 4. 不在本次阶段实现的功能
 
-- Execution Engine、Session/Execution 调度、Steer/Follow-up、Recovery、审批或持久化。
-- Event Bus、HTTP/SSE、CLI、Web UI、MCP、Skill、Sandbox 或工具并行调度。
-- 旧版 BasicLoop、generate/stream 模式切换、loop_result 独立事件、requires_tools 常规结果、总次数上限或隐藏默认全局超时。
-- 为自定义 Loop 强制绑定模型/工具或默认策略，不必要的 DI、插件容器或全局配置系统。
+- **Session Event Log 的 JSONL 读取和写入**、Session Write Coordinator、Transaction Journal、持久化事件投影、重放或崩溃恢复。
+- Runtime Event Bus、SSE、后台消费者、多订阅者广播；ExecutionEvent 只是内存实时通知，不是持久化事实。
+- Session 创建、Session 内 Execution 队列与串行调度（Phase 1.5）。
+- 完整 Turn/Step/Attempt 状态机、Steer/Follow-up、Pause/Resume、Approval/HITL 或 CLI。
+- 修改 Phase 1.3 默认策略或 Phase 1.1/1.2 Model/Tool 公共接口。
 
-Loop 负责策略，Engine 后续负责执行机制；Loop 不创建 Execution/Turn/Step/Attempt 实体，不把模型正常请求工具当成一次 Loop 结束。
+未来 Session Event Log 的物理读写归 Runtime/Persistence，可靠提交、序列与事务边界由后续阶段设计；当前不创建 JSONL 文件、假存储或占位持久化接口。
 
 ## 5. 推荐开发顺序
 
-1. 阅读唯一阶段设计、模块说明与实际 Model/Tool 契约，发现阻断差异先报告最小兼容建议。
-2. 实现并验证算法无关的 Harness AgentLoop 契约，覆盖无模型/工具的自定义实现。
-3. 实现 DefaultAgentLoop 的上下文副本、可用工具快照、流式事件、串行执行、结果回填与正常终止。
-4. 实现 Context 策略配置、模型重试边界、异常/取消/流关闭与并发隔离。
-5. 完成阶段 A–D 测试和模块/项目文档，执行类型检查、lint、格式检查、构建与全部离线测试。
+1. 阅读唯一阶段设计、模块说明与 Phase 1.3 实际契约，发现重大不兼容先报告最小兼容建议。
+2. 实现 Harness Execution 契约、注释、公共导出及自定义 Loop 类型/契约测试。
+3. 实现 Engine 惰性启动、单次消费、ID 校验、Loop 事件协议和终态映射。
+4. 实现取消、提前退出清理、多 Execution 隔离、公开快照保护和有界终态保留。
+5. 完成 Phase 1.4 A–D 测试及模块/项目文档，执行全部工程检查并报告真实结果。
 
-完成 Phase 1.3 后停止；Engine、Agent 和 CLI 仍需后续阶段授权。
+完成后停止，不自动进入 Phase 1.5；不把实时事件直接写成持久化日志。
 
 ## 6. 开发与验证约束
 
@@ -96,7 +97,8 @@ Loop 负责策略，Engine 后续负责执行机制；Loop 不创建 Execution/T
 | `docs/phase-0.md`               | 已完成的工程初始化基线和历史验收                                                 |
 | `docs/phase-1.1.md`             | 已完成 Model System 基线与历史验收                                               |
 | `docs/phase-1.2.md`             | 已完成 Tool Runtime 基线与历史验收                                               |
-| `docs/phase-1.3-agent-loop.md`  | **当前唯一** Agent Loop 设计、任务与验收依据                                     |
+| `docs/phase-1.3.md`             | 已完成 Agent Loop 设计与历史验收                                                 |
+| `docs/phase-1.4.md`             | **当前唯一** Execution Engine 设计、任务与验收依据                               |
 | `docs/phase-1.md`               | Phase 1 阶段顺序索引                                                             |
 | `src/runtime/logging/README.md` | 已完成 Logging 的接口、配置与安全边界                                            |
 | `docs/roadmap.md`               | 后续能力范围，不是本期待办                                                       |
@@ -137,6 +139,6 @@ Loop 负责策略，Engine 后续负责执行机制；Loop 不创建 Execution/T
 
 1. 创建或修改了哪些文件，项目骨架实际完成到什么程度。
 2. 运行过的 `typecheck`、`lint`、`format:check`、`build`、`test` 命令及**真实结果**。
-3. 当前未实现的功能（尤其是 Engine、Session 调度、工具并行、持久化和 CLI 交互）；本次影响的模块说明文件与本地变更日志。
+3. 当前未实现的功能（尤其是 Session 日志读写、恢复、Session 调度、工具并行和 CLI 交互）；本次影响的模块说明文件与本地变更日志。
 4. 是否涉及实质性设计/实现变更，变更记录是否已追加。
 5. 需要用户决策的架构偏离或阻塞，不自行扩大任务范围。

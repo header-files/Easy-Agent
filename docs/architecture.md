@@ -36,7 +36,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 这张图是**职责组织图，不是执行请求调用链**。Harness 不是 Execution 与 Runtime 之间的必经中间件；Composition / Bootstrap 负责装配，不负责运行用户任务。各模块通过必要的契约直接协作。
 
-**Phase 0、Logging、Phase 1.1 Model 和 Phase 1.2 Tool 已完成；当前 Phase 1.3 落地通用 AgentLoop 契约与 Execution DefaultAgentLoop，Engine 等机制仍为后续设计。** 工程基线与历史验收见 [Phase 0](phase-0.md)，当前唯一阶段依据见 [Phase 1.3 Agent Loop](phase-1.3-agent-loop.md)。
+**Phase 0、Logging 与 Phase 1.1–1.3 的 Model/Tool/Loop 已完成；当前 Phase 1.4 实施 Harness Execution 契约与 DefaultExecutionEngine，Session 管理及持久化仍属后续设计。** 工程基线与历史验收见 [Phase 0](phase-0.md)，当前唯一阶段依据见 [Phase 1.4 Execution Engine](phase-1.4.md)。
 
 ## 2. 核心模块职责
 
@@ -60,11 +60,11 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 ### 2.3 Execution
 
-保留 **Agent Loop（策略）与 Execution Engine（机制）分离**。Loop 决定下一步动作和终止；Engine 负责通用执行生命周期、控制与资源清理。当前 Phase 1.3 的官方策略为 DefaultAgentLoop；Execution Engine 属于 Phase 1.4，尚未实现。自定义 Loop 只依赖 Harness 契约，不要求复用默认实现。
+保留 **Agent Loop（策略）与 Execution Engine（机制）分离**。Loop 决定下一步动作和终止；Engine 负责通用执行生命周期、控制与资源清理。Phase 1.3 的官方策略为 DefaultAgentLoop；当前 Phase 1.4 的 DefaultExecutionEngine 通过通用 AgentLoop 契约驱动默认或自定义算法，管理内存状态、实时通知、结果、取消与快照，不决定模型或工具策略。
 
 ### 2.4 Harness
 
-提供 Contracts、Context Management、Extension System、Execution Services、Governance 等横向支撑，**不是第五条纵向业务调用链**。模型、工具与 Loop 契约分别位于 `src/harness/contracts/model/`、`src/harness/contracts/tool/`、`src/harness/contracts/agent-loop/`；其他契约随真实能力落地，不建立巨型接口包。
+提供 Contracts、Context Management、Extension System、Execution Services、Governance 等横向支撑，**不是第五条纵向业务调用链**。模型、工具与 Loop 契约分别位于 `src/harness/contracts/model/`、`src/harness/contracts/tool/`、`src/harness/contracts/agent-loop/`，Execution 运行契约位于 `src/harness/contracts/execution/`；其他契约随真实能力落地，不建立巨型接口包。
 
 ### 2.5 Runtime
 
@@ -83,9 +83,9 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 5. **避免过度设计**：不建立万能 Runtime、过度复杂的抽象、全组件插件化。
 6. **组件架构不等于文件夹模板**：有业务代码时才创建相应源码；不为未来能力批量占位。
 
-## 4. 执行实体与控制模型（未来设计基线）
+## 4. 执行实体与控制模型
 
-这些概念用于明确后续设计方向，**Phase 1.3 不实现相关类或状态机**。
+Phase 1.4 只实现 Execution 的最小内存生命周期：RUNNING、COMPLETED、FAILED、CANCELLED；Session、完整 Turn/Step/Attempt 及后续控制实体仍是未来设计，不提前创建类或复杂状态机。
 
 | 概念      | 定位                               |
 | --------- | ---------------------------------- |
@@ -105,11 +105,11 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 - **Approval**：独立实体，通过引用关联 Step，审批通过不代表操作已成功执行。
 - **Recovery**：基于已有事实核实和恢复，不改写已经发生的历史记录。
 
-具体状态机、审批协议、事件事务边界等以后在相应模块开发时讨论，**不在 Phase 1.3 编写详细实现**。
+除本阶段最小 Execution 状态外，完整状态机、审批协议、Session 事件事务边界等以后按对应模块授权讨论，**不在 Phase 1.4 实现持久化或恢复**。
 
-## 5. Phase 1.3：当前工程目录与能力边界
+## 5. Phase 1.4：当前工程目录与能力边界
 
-Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架。Logging、Model 和 Tool 已形成可复用基线；当前在 Harness 定义 AgentLoop 契约，在 Execution 实现默认策略：
+Phase 0 已建立 Node.js 26.x / TypeScript / ESM 工程和六个一级职责模块的文档骨架。Logging、Model、Tool 与 AgentLoop 已形成可复用基线；当前在 Harness 定义 Execution 契约，在 Execution 实现 Engine：
 
 ```text
 easy-agent/
@@ -121,31 +121,34 @@ easy-agent/
 │   ├── phase-1.md                 # Phase 1 阶段顺序索引
 │   ├── phase-1.1.md               # 已完成 Model System 基线与历史验收
 │   ├── phase-1.2.md               # 已完成 Tool Runtime 基线与历史验收
-│   ├── phase-1.3-agent-loop.md    # 唯一 Agent Loop 设计与任务依据
+│   ├── phase-1.3.md               # 已完成 Agent Loop 设计与历史验收
+│   ├── phase-1.4.md               # 当前唯一 Execution Engine 依据
 │   └── roadmap.md / changes.md
 ├── package.json / package-lock.json
 ├── tsconfig.json / tsconfig.build.json
 ├── eslint.config.js / .prettierrc.json / .prettierignore
 ├── .gitignore / .nvmrc
 ├── src/
-│   ├── index.ts                   # Logger、模型/工具/Loop 契约与组件导出
+│   ├── index.ts                   # 公共契约、Logger、Runtime、Loop/Engine 组件
 │   ├── application/               # 仅 README.md / changes.md
 │   ├── agent/                     # 仅 README.md / changes.md
 │   ├── execution/
-│   │   └── loops/                 # DefaultAgentLoop 与就近 README/changes
+│   │   ├── loops/                 # 既有 DefaultAgentLoop
+│   │   └── engine/                # DefaultExecutionEngine 与就近文档
 │   ├── harness/
 │   │   ├── README.md / changes.md
 │   │   └── contracts/
 │   │       ├── model/             # 既有模型公共契约与就近文档
 │   │       ├── tool/              # 既有工具公共契约与就近文档
-│   │       └── agent-loop/        # 通用 Loop 输入、事件、结果与 run 契约
+│   │       ├── agent-loop/        # 既有通用 AgentLoop 契约
+│   │       └── execution/         # Engine/Request/Event/Result/Snapshot 契约
 │   ├── runtime/
 │   │   ├── README.md / changes.md
 │   │   ├── logging/               # 既有 Logger 门面、Pino 适配及就近文档
 │   │   ├── model/                 # 既有模型 Adapter 与就近文档
 │   │   └── tool/                  # Registry/Executor、Schema 校验与桥接
 │   └── composition/               # 仅 README.md / changes.md
-└── tests/                         # 工程、Logging、Model、Tool、Loop 离线验证
+└── tests/                         # 工程与所有已实现模块的离线验证
 ```
 
 - `ModelClient.generate()` 返回完整响应，`stream()` 返回异步事件流。公共契约不依赖 OpenAI SDK，不引入 Session、Turn 或执行实体。
@@ -157,59 +160,32 @@ easy-agent/
 - Tool 业务失败返回 ToolResult，取消/超时抛出 ToolExecutionError；协作式取消不承诺终止任意代码或回滚副作用。Model Bridge 复用既有模型类型，不调用模型或执行循环。
 - Harness AgentLoop 接口统一为 run(context) 的 AsyncIterable；自定义实现无需模型/工具。DefaultAgentLoop 通过已注入的 ModelClient/Registry/Executor 实现流式模型、串行工具、结果回填和再次模型调用。
 - 默认策略从 Context 扩展读取，模型额外重试默认 2 且受已公开输出边界约束；工具不自动重试。没有模型/工具/迭代总次数上限，也没有默认全局超时。
-- 正常 loop_end 是唯一最终结果，默认返回完整已确认历史；异常/取消通过迭代传播。提前停止消费清理活动流，多 run 状态隔离，不实现 Execution Engine。
-- 当前可独立创建 Model、Tool 和 DefaultAgentLoop 组件，不实现完整 Composition/Bootstrap；未来装配边界选择具体实现。
-- `node_modules/` 和 `dist/` 为忽略的生成目录；私有单包结构、ESM 与工程工具链保持不变。已有默认模型—工具—模型循环；仍没有 CLI 聊天、Session/Execution 调度、Execution Engine 或默认产品装配。
+- Loop 正常结果由唯一 loop_end 返回，默认策略保留完整历史，异常通过迭代抛出；Engine 校验 Loop 协议并在自然 EOF 后归一 Execution 终态，不重写 Loop 策略。
+- Engine execute 是惰性、单消费者、单次消费的 AsyncIterable；启动前错误不产生事件或新快照。启动后通过 execution_start、loop_event、execution_end 输出实时通知。
+- completed 映射 COMPLETED；stopped 映射 FAILED/loop_stopped 并保留 LoopResult。运行异常/协议违例使用安全错误结果，接受的取消请求在收尾后映射 CANCELLED；单次模型/工具 timeout 不自动视为取消。
+- Engine 独立保存内存状态与有界终态快照，运行中记录不淘汰。复制普通数据图；外部函数/闭包/带私有状态对象保留能力引用，不承诺隔离这些对象的内部状态。
+- 消费者提前退出请求取消并清理公开 Loop 迭代器与 Engine 自有资源；不能承诺已退出消费者收到末尾事件，不能强制结束任意更底层资源或回滚副作用。
+- ExecutionEvent 是内存通知，不是持久化事实；当前不读写 Session Event Log JSONL，不创建事务日志、事件重放、恢复、Runtime Event Bus/SSE 或 Session 调度。
+- 当前可独立创建 Model、Tool、Loop 和 Engine，不实现完整 Composition/Bootstrap；未来装配边界选择具体实现。
+- `node_modules/` 和 `dist/` 为忽略的生成目录；私有单包结构、ESM 与工程工具链保持不变。已有默认模型—工具—模型循环；仍没有 CLI 聊天、Session 队列/调度、Session 日志读写或默认产品装配。
 - 能力子模块随真实实现创建本地 README/changes，不为其他未来能力建立空目录或占位接口。
 
-Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。模型细则见 [Model Contracts](../src/harness/contracts/model/README.md) / [Runtime Model](../src/runtime/model/README.md)，工具细则见 [Tool Contracts](../src/harness/contracts/tool/README.md) / [Runtime Tool](../src/runtime/tool/README.md)，Loop 规则只以 [唯一阶段设计](phase-1.3-agent-loop.md) 为准；模块使用见 [AgentLoop Contracts](../src/harness/contracts/agent-loop/README.md) / [Execution Loops](../src/execution/loops/README.md)。
+Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。模型细则见 [Model Contracts](../src/harness/contracts/model/README.md) / [Runtime Model](../src/runtime/model/README.md)，工具细则见 [Tool Contracts](../src/harness/contracts/tool/README.md) / [Runtime Tool](../src/runtime/tool/README.md)，Loop 规则见 [Phase 1.3](phase-1.3.md) 与 [Execution Loops](../src/execution/loops/README.md)；当前 Engine 的唯一阶段依据为 [Phase 1.4](phase-1.4.md)，模块使用见 [Execution Contracts](../src/harness/contracts/execution/README.md) / [Execution Engine](../src/execution/engine/README.md)。
 
-## 6. Phase 1.4 及后续：未来最小 Agent 的建议源码组织
+## 6. Phase 1.5 及后续：未来最小 Agent 的建议组织
 
-以下是 **未来 Agent 闭环的建议源码组织，不是 Phase 1.3 的创建任务**。已有模型、工具和 Loop 模块沿用上一节结构，其余路径随实际需求确认：
-
-```text
- src/
- ├── index.ts
- ├── config/
- │   └── load-config.ts
- ├── composition/
- │   └── create-agent.ts
- ├── application/
- │   └── cli/
- │       └── main.ts
- ├── agent/
- │   ├── agent-manager.ts
- │   └── session-agent.ts
- ├── execution/
- │   ├── execution-engine.ts
- │   └── loops/
- │       └── default-agent-loop.ts
- ├── harness/
- │   └── contracts/
- │       ├── agent-loop/           # 当前通用 Loop 契约
- │       └── model/               # Phase 1.1 已有公共模型契约
- └── runtime/
-     └── model/
-         └── providers/          # Phase 1.1 已有 Adapter
-```
-
-此目录仅示意组件归属，并非所有文件都已经确定必须采用这些名称。测试按真实代码添加，不提前定义大批接口。
-
-未来调用关系可概念性表示为：
+后续 Agent Management（1.5）和 Composition + CLI（1.6）按真实需求创建；不在本阶段补业务占位：
 
 ```text
-CLI ──► AgentManager / SessionAgent ──► Execution Engine
-                                             │
-                                             ▼
-                                         DefaultAgentLoop
-                                             │ ModelClient 契约
-                                             ▼
-                                   Runtime / Model Provider
-
-Composition / Bootstrap：装配以上组件。
-Harness：提供统一契约与横向支撑，而非强制转发。
+src/
+  agent/                         # 后续 Session/输入/Execution 协调
+  composition/                   # 后续统一选择、装配和初始化
+  application/cli/               # 后续交互入口
 ```
+
+未来入口关系为 CLI → Agent 管理 → ExecutionEngine → 任意 AgentLoop → Runtime 能力。当前 Engine 和 Loop 可独立使用；上层 Session ID、全局唯一 Execution ID 分配和同 Session 串行性由 Agent Layer 负责。
+
+Session Event Log 的物理读写唯一归 Runtime/Persistence，Engine/Agent 未来只提交领域事实。可靠提交、序列、幂等和“提交后发布”时序留待后续设计；不能把当前 AsyncIterable 直接接到 JSONL 写入器就宣称具有事件溯源或恢复能力。
 
 ### 后续扩展目录方向（Phase 2/3+）
 
@@ -223,7 +199,6 @@ Harness：提供统一契约与横向支撑，而非强制转发。
    harness/context/              # Context Management
    harness/extension/            # Extension System
    harness/governance/           # Governance
-   runtime/tool/
    runtime/mcp/
    runtime/skill/
    runtime/memory/
@@ -239,16 +214,17 @@ Persistence、Event、Extension、Governance 为跨模块能力或能力域，�
 
 ## 7. 代码依赖约束
 
-当前模型、工具、Loop 实现与后续功能开发均遵循：
+当前模型、工具、Loop/Engine 与后续功能开发均遵循：
 
 - `application/cli` 应依赖 Agent 公共入口，而不直接访问供应商模型 SDK。
 - `agent` 协调 Execution，不把 Loop 的决策策略放进 SessionAgent。
-- `execution/loops` 依赖 `ModelClient` 契约，不直接依赖具体 OpenAI-compatible 实现。
+- `execution/loops` 依赖 ModelClient/Tool 契约，不直接依赖具体 Provider 实现；`execution/engine` 只依赖通用 AgentLoop，不耦合默认算法。
+- Engine 当前只维护内存运行事实，不直接访问 Session Event Log 或承担未来 Persistence/Event 实现。
 - `runtime/model` 实现能力契约，不反向依赖 CLI。
 - `composition` 负责集中选择和装配默认实现，可依赖其装配所需的实现。
 - 读取环境变量及密钥仅发生在明确的配置边界，核心 Loop 不读取环境配置。
 
-**除当前模型、工具和 Loop 契约/实现外，本章节不授权创建后续组件。**
+**除当前模型、工具、Loop 和 Engine 契约/实现外，本章节不授权创建后续组件。**
 
 ## 8. 设计判断与后续更新
 

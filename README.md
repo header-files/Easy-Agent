@@ -2,9 +2,9 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Model System 与 Tool Runtime 已完成，当前交付 Phase 1.3 Agent Loop。**
+**项目状态：Model、Tool、Agent Loop 与 Phase 1.4 Execution Engine 已完成。**
 
-DefaultAgentLoop 复用 ModelClient 与 ToolRegistry/ToolExecutor，提供流式模型→串行工具→结果回填→再次模型调用的闭环，并返回最终答案和完整上下文。Harness AgentLoop 契约支持独立的自定义算法，不强制使用模型或工具。**Execution Engine、Session 调度、工具并行和 CLI/产品装配尚未实现。** 当前唯一阶段依据见 [Phase 1.3 Agent Loop](docs/phase-1.3-agent-loop.md)，既有能力验收分别保存在 [Phase 1.1](docs/phase-1.1.md)、[Phase 1.2](docs/phase-1.2.md)。
+已有 DefaultAgentLoop 提供模型—串行工具—模型闭环；本阶段在其通用契约上提供 DefaultExecutionEngine，统一驱动默认或自定义 Loop，管理内存生命周期、实时事件、结果、取消与快照。**Session 管理/调度、Session 日志读写与恢复、工具并行和 CLI/产品装配尚未实现。** 当前唯一阶段依据见 [Phase 1.4 Execution Engine](docs/phase-1.4.md)，既有 [Agent Loop 设计与历史验收](docs/phase-1.3.md) 保持独立。
 
 ## 产品定位
 
@@ -53,7 +53,7 @@ npm test
 | `npm run build`        | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
 | `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
-`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop 契约与 DefaultAgentLoop。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理及日志安全。该私有包尚未作为 Agent SDK 发布。
+`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop/Execution 契约、DefaultAgentLoop 和 DefaultExecutionEngine。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理、Engine 生命周期/取消/快照及日志安全。该私有包尚未作为 Agent SDK 发布。
 
 安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。Provider 配置通过实例构造参数显式传入；不自动读取 `.env`，没有 CLI 对话命令。
 
@@ -183,7 +183,45 @@ for await (const event of loop.run({
 
 AgentLoopContext 的 model 配置对自定义 Loop 可选；DefaultAgentLoop 运行时才要求有效模型名。默认只用 stream()，同一批工具严格串行；业务错误回填后继续，控制异常通过迭代抛出。模型额外重试默认 2，仅允许在当前尝试尚未公开模型/展示事件且错误明确可重试时发生；工具不重试。
 
-没有总模型调用、工具调用或迭代次数上限，也没有默认全局超时；可配置单次模型/工具超时，通过 signal 取消运行。完整设计只以 [Phase 1.3 Agent Loop](docs/phase-1.3-agent-loop.md) 为准，具体使用、清理与错误边界见 [Execution Loops](src/execution/loops/README.md)。
+没有总模型调用、工具调用或迭代次数上限，也没有默认全局超时；可配置单次模型/工具超时，通过 signal 取消运行。完整设计只以 [Phase 1.3 Agent Loop](docs/phase-1.3.md) 为准，具体使用、清理与错误边界见 [Execution Loops](src/execution/loops/README.md)。
+
+## Execution Engine 使用
+
+Engine 驱动任意 AgentLoop，不要求其内部使用模型或工具。以下沿用前面创建的 loop：
+
+```javascript
+import { DefaultExecutionEngine } from './dist/index.js';
+
+const engine = new DefaultExecutionEngine();
+const executionId = 'execution-example';
+let finalExecutionResult;
+
+for await (const event of engine.execute({
+  executionId,
+  loop,
+  context: {
+    input: { content: '向 Easy Agent 问好' },
+    context: { messages: [] },
+    config: { model: { name: 'your-model-id' } },
+    control: { signal: new AbortController().signal },
+  },
+})) {
+  if (event.type === 'loop_event' && event.event.type === 'output_delta') {
+    process.stdout.write(event.event.content);
+  }
+  if (event.type === 'execution_end') finalExecutionResult = event.result;
+}
+
+const snapshot = engine.getSnapshot(executionId);
+```
+
+execute 是惰性、单次消费的事件流，Execution ID 由调用方分配。Engine 在合法 loop_end 之后继续确认自然 EOF：completed 映射 COMPLETED，stopped 映射 FAILED/loop_stopped；运行异常转成安全的 FAILED 结果。
+
+`engine.cancel(id)` 返回 true 只表示取消请求已接受；清理前快照可以仍为 RUNNING。消费者 break/return 会取消本次执行，但不能保证该消费者收到 execution_end。清理只承诺公开 Loop 边界和 Engine 自有资源，不强制停止任意下游操作或回滚副作用。
+
+终态快照有界保留，默认最多 1000 条，可通过 maxRetainedSnapshots 配置为 0；RUNNING 不会被淘汰。快照隔离 Engine 自有状态与可复制数据图，外部函数/闭包/有私有状态对象保留能力引用，其内部状态不承诺隔离。具体范围和选项见 [Execution Engine](src/execution/engine/README.md)。
+
+ExecutionEvent 只是内存实时通知。本阶段**不读取或写入 Session Event Log JSONL**，不实现事务日志、事件重放、恢复、Session 队列/调度或 SSE；完整规则以 [Phase 1.4](docs/phase-1.4.md) 为准。
 
 ## 当前目录
 
@@ -200,17 +238,19 @@ easy-agent/
 │   ├── application/               # 仅 README.md / changes.md
 │   ├── agent/                     # 仅 README.md / changes.md
 │   ├── execution/
-│   │   └── loops/                 # DefaultAgentLoop 与就近文档
+│   │   ├── loops/                 # 已有 DefaultAgentLoop
+│   │   └── engine/                # DefaultExecutionEngine 与就近文档
 │   ├── harness/contracts/
 │   │   ├── model/                 # 公共模型契约与就近文档
 │   │   ├── tool/                  # 公共工具契约与就近文档
-│   │   └── agent-loop/            # 通用 AgentLoop 契约与就近文档
+│   │   ├── agent-loop/            # 通用 AgentLoop 契约与就近文档
+│   │   └── execution/             # Execution 契约与就近文档
 │   ├── runtime/
 │   │   ├── logging/               # Logger 门面、Pino 适配与就近文档
 │   │   ├── model/                 # Chat Completions Adapter 与就近文档
 │   │   └── tool/                  # Registry/Executor、Schema 校验和桥接
 │   └── composition/               # 仅 README.md / changes.md
-└── tests/                         # 工程、Logging、Model、Tool、Loop 离线验证
+└── tests/                         # 工程与所有已实现能力的离线验证
 ```
 
 六个一级模块均有 README/changes。安装目录 `node_modules/` 和构建输出 `dist/` 已忽略，不纳入版本控制；未来能力随实际开发创建。
@@ -239,12 +279,13 @@ easy-agent/
 - [Phase 1：阶段顺序索引](docs/phase-1.md)
 - [Phase 1.1：已完成 Model System 与历史验收](docs/phase-1.1.md)
 - [Phase 1.2：已完成 Tool Runtime 与历史验收](docs/phase-1.2.md)
-- [Phase 1.3：唯一 Agent Loop 设计与任务依据](docs/phase-1.3-agent-loop.md)
+- [Phase 1.3：已完成 Agent Loop 设计与历史验收](docs/phase-1.3.md)
+- [Phase 1.4：当前唯一 Execution Engine 依据](docs/phase-1.4.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前阶段唯一依据为 `docs/phase-1.3-agent-loop.md`。** 只完成 Phase 1.3，不自动进入 Phase 1.4；`docs/roadmap.md` 不是自动接续开发清单。
+**当前阶段唯一依据为 `docs/phase-1.4.md`。** 只完成 Phase 1.4，不自动进入 Phase 1.5；`docs/roadmap.md` 不是自动接续开发清单。
 
 ## 文档维护原则
 

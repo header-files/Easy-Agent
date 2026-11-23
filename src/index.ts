@@ -24,3 +24,8 @@ export {
   DefaultAgentLoop,
   type DefaultAgentLoopOptions,
 } from './execution/loops/index.ts';
+export * from './harness/contracts/execution/index.ts';
+export {
+  DefaultExecutionEngine,
+  type DefaultExecutionEngineOptions,
+} from './execution/engine/index.ts';

@@ -56,4 +56,14 @@
 - 修改原因：按用户确认的唯一 Phase 1.3 方案建立默认策略及第三方 Loop 共用的最小边界，保留策略与 Execution Engine 机制分离。
 - 影响范围：AgentLoop 类型、公共导出、契约测试和 Harness 父模块说明；直接引用已有 Model/Tool 类型，不修改 Phase 1.1/1.2 契约；不引入旧版 BasicLoop、loop_result、getResult 或总调用上限。
 - 依据/验证：独立严格类型检查通过，`node --test tests/agent-loop-contracts.test.ts` 6 项通过；基础契约验收完成后通知 Execution 实现阶段开始。
-- 现行说明：[AgentLoop Contracts](contracts/agent-loop/README.md)、[唯一阶段方案](../../docs/phase-1.3-agent-loop.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。
+- 现行说明：[AgentLoop Contracts](contracts/agent-loop/README.md)、[唯一阶段方案](../../docs/phase-1.3.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。
+
+### 2026-11-23 — 引入 Phase 1.4 Execution 运行契约
+
+- 主题 ID：`harness.execution-contracts`
+- 变更前：Harness 已提供 Model、Tool 和 AgentLoop 协议，没有统一 Execution 的事件、状态、取消及快照接口。
+- 变更后：新增 `contracts/execution`，精确定义 ExecutionEngine、ExecutionRequest、ExecutionEvent、ExecutionResult、ExecutionSnapshot 及状态/错误类型；直接引用既有 AgentLoop 契约，支持无模型或工具的自定义 Loop。
+- 修改原因：按用户确认的 Phase 1.4 方案提供执行机制边界，保持 Loop 策略、Engine 内存生命周期、未来 Session 调度和 Persistence 的职责分离。
+- 影响范围：Execution 公共类型、统一导出、契约测试和 Harness 父模块说明；不修改 Phase 1.1–1.3 公共协议，不新增持久化或后续阶段占位接口。
+- 依据/验证：独立严格类型检查通过，`node --test tests/execution-contracts.test.ts` 5 项通过，定向 ESLint 与格式检查通过；契约基础验证完成后向 Engine 实现阶段交接。
+- 现行说明：[Execution Contracts](contracts/execution/README.md)、[唯一阶段方案](../../docs/phase-1.4.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。

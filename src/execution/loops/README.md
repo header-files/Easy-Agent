@@ -2,7 +2,7 @@
 
 ## 定位与当前实现
 
-Phase 1.3 的唯一设计依据是 [Agent Loop 技术方案](../../../docs/phase-1.3-agent-loop.md)。本模块实现默认策略 `DefaultAgentLoop`：模型流式请求、按序执行工具、结果回填、继续请求模型，直到正常完成或可预期停止。
+Phase 1.3 的唯一设计依据是 [Agent Loop 技术方案](../../../docs/phase-1.3.md)。本模块实现默认策略 `DefaultAgentLoop`：模型流式请求、按序执行工具、结果回填、继续请求模型，直到正常完成或可预期停止。
 
 对外实现 [Harness AgentLoop](../../harness/contracts/agent-loop/README.md)，依赖 Phase 1.1 的 ModelClient 和 Phase 1.2 的 ToolRegistry / ToolExecutor 契约。第三方 Loop 只需满足公共协议，无须继承或复用本实现。当前没有 BasicLoop 别名、generate/stream 模式开关或独立 loop_result 事件。
 
@@ -128,4 +128,4 @@ details 是默认实现的可选统计：modelCalls 计物理 stream 尝试（�
 
 Loop 本身没有增加日志构造策略或内容日志；现有 Runtime 能力继续通过统一 Logger 输出诊断到 stderr。Loop 的对外事件是公共调用协议，不是日志或持久化事实。
 
-相关文档：[公共 AgentLoop](../../harness/contracts/agent-loop/README.md)、[Execution](../README.md)、[唯一阶段依据](../../../docs/phase-1.3-agent-loop.md)、[变更时间线](changes.md)。
+相关文档：[公共 AgentLoop](../../harness/contracts/agent-loop/README.md)、[Execution](../README.md)、[唯一阶段依据](../../../docs/phase-1.3.md)、[变更时间线](changes.md)。

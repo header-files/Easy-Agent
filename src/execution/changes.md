@@ -38,3 +38,14 @@ Phase 0 创建职责文档建立基线；实际实现按时间追加如下。
 - 兼容边界：Context timeout 校验沿用现有 Runtime 整数范围；ModelRequest 副本局部处理无工具 null assistant，内部权威历史保持原值。详情见 [Loop 时间线](loops/changes.md)。
 - 验证依据：基础算法、独立控制/并发、协议边界和真实 Runtime 的离线链路；最终整仓结果见阶段记录。
 - 现行说明：[README.md](README.md)、[Loop README](loops/README.md)；跨模块摘要见 [项目级记录](../../docs/changes.md)。
+
+### 2026-11-23 — 新增前台内存 Execution Engine
+
+- 主题 ID：`execution.engine`
+- 变更前：Execution 只有可替换 Loop 策略，没有统一执行生命周期、取消入口和可查询快照。
+- 变更后：新增 Engine 子模块与就近 README/changes，实现 Harness ExecutionEngine，统一驱动任意 AgentLoop；管理内存 RUNNING/COMPLETED/FAILED/CANCELLED、惰性事件流、协议校验与终态有界保留。
+- 修改原因：用户授权 Phase 1.4，在既有策略层之上建立运行机制，保持 Loop/Engine 分离，不重新实现模型或工具。
+- 关键决定：清理确认前不提前提交取消终态；可复制数据图强隔离，用户确认 opaque 外部能力保留引用并说明限制。详细决策见 [Engine 时间线](engine/changes.md)。
+- 影响范围：`src/execution/engine`、Harness Execution 契约使用与离线测试；原 Loop 源码和 1.1–1.3 公共协议不变。旧 Loop 文档链接随用户迁移到 phase-1.3.md 更新，没有恢复已删除文件。
+- 验证依据：主流程、自定义 Loop、取消/清理、并发隔离、快照与保留、真实 DefaultAgentLoop 集成测试；最终完整结果见 Phase 1.4 验收。
+- 现行说明：[Engine README](engine/README.md)、[README.md](README.md)；全局记录见 [项目变更时间线](../../docs/changes.md)。
