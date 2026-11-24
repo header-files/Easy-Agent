@@ -138,6 +138,7 @@ function lifecycle(entries: Entry[], operation: string, terminal: string) {
 test('generate 生命周期使用 Logger 契约，成功记录耗时、结束原因和真实 Usage', async () => {
   const { logger, entries } = capture();
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => response(),
   });
@@ -151,6 +152,7 @@ test('generate 生命周期使用 Logger 契约，成功记录耗时、结束原
 test('stream 保持惰性，终态日志在交付 message_end 前完成且仅一次', async () => {
   const { logger, entries } = capture();
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => streamBody(),
   });
@@ -173,6 +175,7 @@ test('参数校验失败记录统一 invalid_request，仍不访问传输层', a
   const { logger, entries } = capture();
   let calls = 0;
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => {
       calls++;
@@ -203,7 +206,11 @@ test('网络失败、HTTP失败和协议失败均记录 ERROR 与安全统一错
     [async () => Response.json({ choices: [] }), 'invalid_response'],
   ] as const) {
     const { logger, entries } = capture();
-    const client = new OpenAICompatibleModelClient({ logger, fetch });
+    const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
+      logger,
+      fetch,
+    });
     await assert.rejects(client.generate(request()), { code });
     const failed = lifecycle(entries, 'generate', 'failed');
     assert.equal(failed.level, 'error');
@@ -278,6 +285,7 @@ test('无脱敏功能的注入 Logger 也收不到请求/响应载荷、配置�
 test('流式工具调用只记录元数据，不输出文本或工具参数增量', async () => {
   const { logger, entries } = capture();
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () =>
       new Response(
@@ -314,6 +322,7 @@ test(
     const arrived = deferred<void>();
     const gates = new Map<string, ReturnType<typeof deferred<Response>>>();
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       logger,
       fetch: async (_input, init) => {
         const { model } = JSON.parse(String(init?.body)) as { model: string };
@@ -359,6 +368,7 @@ test(
       const started = deferred<void>();
       const controller = new AbortController();
       const client = new OpenAICompatibleModelClient({
+        baseURL: 'https://provider.invalid/v1',
         logger,
         fetch: async () => {
           started.resolve();
@@ -389,6 +399,7 @@ test('流式提前退出记录 consumer_return 并释放连接，没有成功终
   const stream = feed();
   stream.write(frame({ content: 'PRIVATE_PARTIAL_TEXT' }));
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => stream.response,
   });
@@ -412,6 +423,7 @@ test(
       stream.write(frame({ content: 'PRIVATE_PARTIAL_TEXT' }));
       const controller = new AbortController();
       const client = new OpenAICompatibleModelClient({
+        baseURL: 'https://provider.invalid/v1',
         logger,
         fetch: async () => stream.response,
       });
@@ -442,6 +454,7 @@ test(
       stream.write(frame({ content: 'PRIVATE_PARTIAL_TEXT' }));
       const controller = new AbortController();
       const client = new OpenAICompatibleModelClient({
+        baseURL: 'https://provider.invalid/v1',
         logger,
         fetch: async () =>
           mode === 'invalid_response'
@@ -489,11 +502,13 @@ test('日志方法和 child 初始化失败不会改变模型响应、异常或�
   }
   for (const logger of [throwingLogger(), throwingLogger(true)]) {
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       logger,
       fetch: async () => response(),
     });
     assert.equal((await client.generate(request())).finishReason, 'stop');
     const bad = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       logger,
       fetch: async () => {
         throw new TypeError('transport error');
@@ -503,6 +518,7 @@ test('日志方法和 child 初始化失败不会改变模型响应、异常或�
     const stream = feed();
     stream.write(frame({ content: 'PRIVATE_PARTIAL_TEXT' }));
     const streaming = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       logger,
       fetch: async () => stream.response,
     });
@@ -522,6 +538,7 @@ test('未注入 Logger 时使用 stderr 和 LOG_LEVEL，日志不包含模型载
       '--eval',
       `const {OpenAICompatibleModelClient} = await import(${JSON.stringify(moduleUrl)});
      const client = new OpenAICompatibleModelClient({
+       baseURL: 'https://provider.invalid/v1',
        apiKey:'PRIVATE_DEFAULT_KEY',
        fetch:async()=>Response.json({choices:[{message:{role:'assistant',content:'PRIVATE_OUTPUT'},finish_reason:'stop'}]})
      });
@@ -558,7 +575,7 @@ test('默认日志初始化失败也不阻断模型请求', async () => {
       '--input-type=module',
       '--eval',
       `const {OpenAICompatibleModelClient} = await import(${JSON.stringify(moduleUrl)});
-     const client = new OpenAICompatibleModelClient({fetch:async()=>Response.json({choices:[{message:{role:'assistant',content:'ok'},finish_reason:'stop'}]})});
+     const client = new OpenAICompatibleModelClient({baseURL:'https://provider.invalid/v1',fetch:async()=>Response.json({choices:[{message:{role:'assistant',content:'ok'},finish_reason:'stop'}]})});
      const result=await client.generate({model:'test-model',messages:[{role:'user',content:'hi'}]});
      process.stdout.write(result.message.content);`,
     ],
@@ -580,11 +597,13 @@ test('满足 void 契约的异步 Logger 拒绝也被接管，不影响模型结
     child: () => logger,
   };
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => response(),
   });
   assert.equal((await client.generate(request())).finishReason, 'stop');
   const bad = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => new Response('private', { status: 503 }),
   });
@@ -592,6 +611,7 @@ test('满足 void 契约的异步 Logger 拒绝也被接管，不影响模型结
   const stream = feed();
   stream.write(frame({ content: 'PRIVATE_PARTIAL_TEXT' }));
   const streaming = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => stream.response,
   });
@@ -615,6 +635,7 @@ test('注入 Logger 修改收到的 Usage 不会改写调用方的模型响应',
     child: () => logger,
   };
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => response(),
   });

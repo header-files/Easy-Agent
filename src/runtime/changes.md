@@ -79,3 +79,12 @@ Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追
 - 影响范围：`src/runtime/model` 的响应映射与离线测试；公共 Model 契约未改。
 - 依据/验证：细节见 [Model 时间线](model/changes.md)。
 - 现行说明：[Model README](model/README.md)。
+
+### 2026-11-24 — Runtime Model 增加路由与 Responses
+
+- 主题 ID：`runtime.multi-model-routing`
+- 变更前：Runtime Model 仅提供 Compatible Adapter。
+- 变更后：父模块纳入 Registry/Router 与 Responses Provider 说明；细节见 Model 子模块。
+- 修改原因：Phase 2.1。
+- 依据/验证：见 [Model 时间线](model/changes.md)。
+- 现行说明：[Model README](model/README.md)。

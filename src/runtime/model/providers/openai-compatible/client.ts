@@ -16,8 +16,9 @@ import { StreamState } from './stream-state.ts';
 import { clientLogger, LifecycleLog } from './lifecycle-log.ts';
 
 export interface OpenAICompatibleConfig {
+  /** Required endpoint root; caller supplies the vendor or proxy URL. */
+  baseURL: string;
   apiKey?: string;
-  baseURL?: string;
   fetch?: typeof globalThis.fetch;
   maxTokensField?: MaxTokensField;
   logger?: Logger;
@@ -32,14 +33,20 @@ export class OpenAICompatibleModelClient implements ModelClient {
   private readonly logger: Logger | undefined;
   private readonly redactValues: readonly string[];
 
-  constructor(config: OpenAICompatibleConfig = {}) {
+  constructor(config: OpenAICompatibleConfig) {
     if (typeof config !== 'object' || config === null || Array.isArray(config))
       throw failure(
         'invalid_request',
         'Provider configuration must be an object.',
       );
+    if (typeof config.baseURL !== 'string' || config.baseURL.length === 0) {
+      throw failure(
+        'invalid_request',
+        'baseURL is required and must be a non-empty string.',
+      );
+    }
     try {
-      const url = new URL(config.baseURL ?? 'https://api.openai.com/v1');
+      const url = new URL(config.baseURL);
       if (
         !['http:', 'https:'].includes(url.protocol) ||
         url.username ||
@@ -50,7 +57,8 @@ export class OpenAICompatibleModelClient implements ModelClient {
         throw new Error();
       url.pathname = `${url.pathname.replace(/\/+$/, '')}/chat/completions`;
       this.endpoint = url.href;
-    } catch {
+    } catch (error) {
+      if (error instanceof ModelError) throw error;
       throw failure(
         'invalid_request',
         'baseURL must be an HTTP(S) URL without credentials, query or fragment.',

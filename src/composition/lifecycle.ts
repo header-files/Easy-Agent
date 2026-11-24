@@ -16,6 +16,18 @@ export function manageLifecycle(delegate: AgentApplicationService) {
       check();
       return delegate.createSession(options);
     },
+    listModels() {
+      check();
+      return delegate.listModels();
+    },
+    getSessionModel(id) {
+      check();
+      return delegate.getSessionModel(id);
+    },
+    setSessionModel(id, modelId) {
+      check();
+      delegate.setSessionModel(id, modelId);
+    },
     listSessions() {
       check();
       return delegate.listSessions();

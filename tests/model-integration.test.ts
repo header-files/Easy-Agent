@@ -178,6 +178,7 @@ test(
     const generateGate = deferred<Response>();
     let started = 0;
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as {
           model: string;
@@ -270,6 +271,7 @@ test(
     let count = 0;
     let abortedSignal: AbortSignal | null | undefined;
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as { model: string };
         count += 1;
@@ -302,6 +304,7 @@ test(
 
 test('单请求无效响应和网络错误不污染并发成功请求', async () => {
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async (_input, init) => {
       const body = JSON.parse(String(init?.body)) as { model: string };
       if (body.model === 'network')
@@ -339,6 +342,7 @@ test('SSE 逐字节分片、UTF8、CRLF、注释和多 data 行经过完整客�
     },
   });
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async () => new Response(body),
   });
   const events = await collect(client.stream(request('utf8')));
@@ -354,6 +358,7 @@ test('stream 懒执行，开始消费才启动 timeout；提前 break 释放底�
   const stream = feed();
   let signal: AbortSignal | null | undefined;
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async (_input, init) => {
       calls += 1;
       signal = init?.signal;
@@ -379,6 +384,7 @@ test(
     const slow = feed();
     const healthy = feed();
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: async (_input, init) => {
         const body = JSON.parse(String(init?.body)) as { model: string };
         return body.model === 'slow' ? slow.response : healthy.response;
@@ -419,6 +425,7 @@ test(
     const stream = feed();
     stream.write('{"choices":');
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: async () => stream.response,
     });
     await assert.rejects(
@@ -436,6 +443,7 @@ test(
     const stream = feed();
     const controller = new AbortController();
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: async () => stream.response,
     });
     const seen: ModelStreamEvent[] = [];
@@ -465,6 +473,7 @@ test('已取消请求不会访问 transport，配置不从环境隐式读取', a
   const controller = new AbortController();
   controller.abort();
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async () => {
       calls += 1;
       return reply('unused');
@@ -508,6 +517,7 @@ test('流式截断、错误帧、工具字段冲突均抛出统一错误，不�
   ];
   for (const [index, raw] of scenarios.entries()) {
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: async () => new Response(raw),
     });
     const seen: ModelStreamEvent[] = [];
@@ -529,6 +539,7 @@ test('非流式及流式 Provider 错误公开消息不会泄露密钥、响应�
   const secret = 'test-super-secret-key';
   for (const status of [401, 403, 429, 400, 500]) {
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       apiKey: secret,
       fetch: async () =>
         Response.json(
@@ -556,6 +567,7 @@ test('收到 message_end 时资源已释放，调用方不继续迭代也不保�
   const controller = new AbortController();
   let signal: AbortSignal | null | undefined;
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async (_input, init) => {
       signal = init?.signal;
       return stream.response;
@@ -587,6 +599,7 @@ test(
     const transport = deferred<Response>();
     const cancelled = deferred<void>();
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       fetch: () => transport.promise,
     });
     await assert.rejects(
@@ -609,6 +622,7 @@ test(
 test('transport 同步触发取消并拒绝时保持 aborted，接管底层 Promise 拒绝', async () => {
   const controller = new AbortController();
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: () => {
       controller.abort();
       return Promise.reject(new Error('private transport failure'));

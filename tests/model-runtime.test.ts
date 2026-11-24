@@ -23,6 +23,7 @@ const response = (extra: Record<string, unknown> = {}) => ({
 });
 const client = (result: unknown, status = 200) =>
   new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async () => new Response(JSON.stringify(result), { status }),
   });
 const code = (expected: string) => (error: unknown) =>
@@ -40,6 +41,7 @@ const chunk = (
 ) => ({ choices: [{ index: 0, delta, finish_reason: finish }] });
 const streamClient = (frames: unknown[]) =>
   new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async () =>
       new Response(
         frames
@@ -98,6 +100,7 @@ test('参数统一映射、原生扩展透传和传输配置', async () => {
 test('兼容旧供应商的输出Token字段配置', async () => {
   let sent: unknown;
   const instance = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     maxTokensField: 'max_tokens',
     fetch: async (_url, init) => {
       sent = JSON.parse(String(init?.body));
@@ -400,6 +403,7 @@ test('无效响应、缺少工具字段和不一致的工具结束原因均失�
       code('invalid_response'),
     );
   const badJson = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async () => new Response('bad-json'),
   });
   await assert.rejects(badJson.generate(request), code('invalid_response'));
@@ -437,7 +441,9 @@ test('Provider配置和调用控制校验使用统一错误', async () => {
     { baseURL: 'bad' },
     { baseURL: 'ftp://provider.invalid' },
     { baseURL: 'https://user:pass@provider.invalid' },
-    { apiKey: 'key\nheader' },
+    { baseURL: 'https://provider.invalid', apiKey: 'key\nheader' },
+    { apiKey: 'ok' },
+    {},
     null,
   ]) {
     assert.throws(
@@ -851,6 +857,7 @@ test('流式拒绝缺失必需工具字段、重复工具ID、未知数据和结
 test('流式默认请求usage，允许原生stream_options关闭', async () => {
   const sent: unknown[] = [];
   const instance = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async (_url, init) => {
       sent.push(JSON.parse(String(init?.body)));
       return new Response(
@@ -887,6 +894,7 @@ test('fallback模型来自已映射的请求快照，不受调用方中途修改
   };
   let mode = 'generate';
   const instance = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async () => {
       mutable.model = 'changed';
       return mode === 'generate'
@@ -908,6 +916,7 @@ test('fallback模型来自已映射的请求快照，不受调用方中途修改
 test('transport同步触发取消后返回rejected promise不会泄漏未处理拒绝', async () => {
   const controller = new AbortController();
   const instance = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: () => {
       controller.abort();
       return Promise.reject(new Error('transport error'));
@@ -924,6 +933,7 @@ test('message_end交付前释放底层流和取消控制，即使消费者不再
   let cancelled = false;
   let signal: AbortSignal | null | undefined;
   const instance = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async (_url, init) => {
       signal = init?.signal;
       return new Response(
@@ -956,6 +966,7 @@ test('message_end交付前释放底层流和取消控制，即使消费者不再
 test('原生可空n和stream_options原样透传，不被默认值覆盖', async () => {
   const sent: Record<string, unknown>[] = [];
   const instance = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     fetch: async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       sent.push(body);

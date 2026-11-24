@@ -14,3 +14,12 @@
 - 验证依据：`tests/model-contracts.test.ts` 覆盖静态结构、class/工厂替代实现及 ModelError；Runtime 行为由 Adapter 测试验证。
 - 非目标：不引入 Session、Loop、Engine、工具执行、请求队列或全局并发治理。
 - 关联：[Harness 记录](../../changes.md)、[项目级记录](../../../../docs/changes.md)。
+
+### 2026-11-24 — 增加 ModelCatalog 只读契约
+
+- 主题 ID：`harness.model-contracts`
+- 变更前：仅有 ModelClient 调用契约，无显式模型目录类型。
+- 变更后：新增 `ModelDescriptor` / `ModelCatalog`（`has` / `list`），供 Application 与 Registry 共享只读视图；既有 ModelClient 请求/响应/流式契约不变。
+- 修改原因：Phase 2.1 需要跨层表达已注册模型，而不把路由状态放进 ModelClient。
+- 影响范围：本契约导出、Application、Runtime Registry。
+- 验证：类型检查与模型路由/应用测试通过。

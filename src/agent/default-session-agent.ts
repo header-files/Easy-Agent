@@ -37,7 +37,7 @@ interface SessionOptions {
 interface Submission {
   id: string;
   input: string;
-  config: NonNullable<SessionSubmitOptions['config']>;
+  config: AgentLoopContext['config'];
   controller: AbortController;
   buffer: SessionEventBuffer;
   settle: (result: ExecutionResult) => void;
@@ -52,7 +52,7 @@ export class DefaultSessionAgent implements SessionAgent {
   private readonly options: SessionOptions;
   private readonly createdAt = new Date().toISOString();
   private committed: AgentLoopContext['context'];
-  private readonly defaults: NonNullable<SessionSubmitOptions['config']>;
+  private defaults: NonNullable<SessionSubmitOptions['config']>;
   private queue: Submission[] = [];
   private readonly submissions = new Map<string, Submission>();
   private active: Submission | undefined;
@@ -84,6 +84,18 @@ export class DefaultSessionAgent implements SessionAgent {
   getContext(): AgentLoopContext['context'] {
     return contextSnapshot(this.committed);
   }
+  getModel(): string | undefined {
+    return this.defaults.model?.name;
+  }
+  setModel(modelId: string): void {
+    if (this.closed || typeof modelId !== 'string' || !modelId.trim()) {
+      return invalidInput();
+    }
+    this.defaults = configSnapshot(
+      resolveConfig(this.defaults, { model: { name: modelId } }),
+      true,
+    );
+  }
 
   /** @internal Manager lifecycle, not part of the Harness SessionAgent contract. */
   summary(): SessionSummary {
@@ -113,8 +125,9 @@ export class DefaultSessionAgent implements SessionAgent {
           Array.isArray(options)))
     )
       return invalidInput();
-    const config = configSnapshot(options?.config, true);
-    resolveConfig(this.defaults, config); // Reject impossible partial model config synchronously.
+    const overrides = configSnapshot(options?.config, true);
+    // Freeze all effective options now; later Session model switches cannot rewrite queued work.
+    const config = resolveConfig(this.defaults, overrides);
     const id = this.options.executionId();
     const buffer = new SessionEventBuffer(this.options.eventBufferCapacity);
     let settle!: (result: ExecutionResult) => void;
@@ -230,7 +243,7 @@ export class DefaultSessionAgent implements SessionAgent {
       const context: AgentLoopContext = {
         input: { content: submission.input },
         context: this.getContext(),
-        config: resolveConfig(this.defaults, submission.config),
+        config: snapshot(submission.config),
         control: { signal: submission.controller.signal },
         metadata: { sessionId: this.id, executionId: submission.id },
       };

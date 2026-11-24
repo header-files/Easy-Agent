@@ -102,6 +102,7 @@ function registry() {
 test('真实Model和Tool Runtime闭环：批次业务错误继续回填，最终正文不重复累加展示增量', async () => {
   const requests: WireRequest[] = [];
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async (_input, init) => {
       const request = JSON.parse(String(init?.body)) as WireRequest;
@@ -193,6 +194,7 @@ test('空白工具标识片段经过真实Runtime完成多工具组装、执行�
   const requests: WireRequest[] = [];
   const executed: string[] = [];
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async (_input, init) => {
       requests.push(JSON.parse(String(init?.body)) as WireRequest);
@@ -359,6 +361,7 @@ test('工具可见声明在run内固定，注销产生真实tool_not_found，新
   const registered = registry();
   const requests: WireRequest[] = [];
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async (_input, init) => {
       requests.push(JSON.parse(String(init?.body)) as WireRequest);
@@ -407,6 +410,7 @@ test('工具可见声明在run内固定，注销产生真实tool_not_found，新
 test('空assistant权威结果保持null，复用历史时仅请求副本兼容既有Model Runtime', async () => {
   const requests: WireRequest[] = [];
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async (_input, init) => {
       requests.push(JSON.parse(String(init?.body)) as WireRequest);
@@ -448,6 +452,7 @@ test('真实HTTP级可重试失败按每轮Context配置重置，不给正常工
   let fetches = 0;
   let round = 0;
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => {
       fetches++;
@@ -500,6 +505,7 @@ test('真实HTTP级可重试失败按每轮Context配置重置，不给正常工
 test('真实流已公开事件后的截断不能重试或执行不完整工具，也不产生loop_end', async () => {
   let requests = 0;
   const client = new OpenAICompatibleModelClient({
+    baseURL: 'https://provider.invalid/v1',
     logger,
     fetch: async () => {
       requests++;
@@ -552,6 +558,7 @@ test(
       let cancellations = 0;
       let signal: AbortSignal | null | undefined;
       const client = new OpenAICompatibleModelClient({
+        baseURL: 'https://provider.invalid/v1',
         logger,
         fetch: async (_input, init) => {
           requests++;
@@ -631,6 +638,7 @@ test(
       },
     );
     const client = new OpenAICompatibleModelClient({
+      baseURL: 'https://provider.invalid/v1',
       logger,
       fetch: async () => {
         modelCalls++;

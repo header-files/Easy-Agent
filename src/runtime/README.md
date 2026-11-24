@@ -21,18 +21,18 @@
 
 ## 当前实现状态
 
-**Logging、Model System 与 Tool Runtime 已完成，是既有 Loop/Engine/Agent 流程的底层能力，当前 Phase 1.6 由 Composition 统一装配。**
+**Logging、Model System（含 Registry/Router 与 Responses）与 Tool Runtime 已完成，由 Composition 统一装配。**
 
 - [`logging/index.ts`](logging/index.ts) 提供供应商无关的 Logger 与 Pino 实现，支持四级结构化日志、错误信息、子 logger、环境级别、stderr 和脱敏，行为详见 [Logging README](logging/README.md)。
-- [`model/index.ts`](model/index.ts) 提供实现 Harness ModelClient 的 `OpenAICompatibleModelClient`，支持文本、多轮消息、流式、Tool Calling、参数映射、Usage、统一错误、取消/超时和自然并发，行为详见 [Model README](model/README.md)。
+- [`model/index.ts`](model/index.ts) 提供 `OpenAICompatibleModelClient`、`OpenAIResponsesModelClient`、`DefaultModelRegistry` 与 `ModelRouter`，行为详见 [Model README](model/README.md)。
 - [`tool/index.ts`](tool/index.ts) 提供 DefaultToolRegistry、DefaultToolExecutor 和 Model Bridge，支持 JSON Schema、工具执行、快照、取消/超时及并发隔离，行为详见 [Tool README](tool/README.md)。
 - Model 与 Tool 复用既有 Logger，默认提供生命周期日志并允许构造时注入。日志只记录可诊断的白名单元数据；日志故障不改变结果或清理语义。
 
-其他 Runtime 能力域尚未实现；Phase 1.6 继续复用既有契约，不新增 Persistence、Event Bus 或 Session 日志读写能力。
+其他 Runtime 能力域尚未实现；不新增 Persistence、Event Bus 或 Session 日志读写能力。
 
 ## 后续实现范围
 
-按后续授权逐步增加其他模型协议、MCP / Skill 等能力；本模块当前不提供模型路由、队列或自动重试。模型—工具—模型策略已由 Execution 的 DefaultAgentLoop 实现，Engine 负责独立运行机制，均不下沉到 Runtime。
+按后续授权逐步增加其他模型协议、MCP / Skill 等能力；本模块不提供队列、自动重试、热更新或智能 Fallback。模型—工具—模型策略已由 Execution 的 DefaultAgentLoop 实现，Engine 负责独立运行机制，均不下沉到 Runtime。
 
 ## 协作与边界
 

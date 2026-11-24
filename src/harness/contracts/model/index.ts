@@ -1,4 +1,5 @@
 export type { ModelCallOptions, ModelClient } from './model-client.ts';
+export type { ModelCatalog, ModelDescriptor } from './model-catalog.ts';
 export { ModelError } from './model-error.ts';
 export type { ModelErrorCode, ModelErrorInfo } from './model-error.ts';
 export type {

@@ -7,6 +7,10 @@ import type {
   SessionSummary,
 } from '../harness/contracts/agent/index.ts';
 import type { AgentLoopContext } from '../harness/contracts/agent-loop/index.ts';
+import type {
+  ModelCatalog,
+  ModelDescriptor,
+} from '../harness/contracts/model/index.ts';
 import {
   AgentApplicationError,
   type AgentApplicationService,
@@ -14,6 +18,7 @@ import {
 } from './agent-application-service.ts';
 
 export interface DefaultAgentApplicationServiceOptions {
+  modelCatalog: ModelCatalog;
   /** Bootstrap-owned defaults; do not mutate them during the service lifetime. */
   defaultSessionOptions?: CreateSessionOptions;
 }
@@ -127,11 +132,12 @@ function mergeConfig(
 /** Thin delegation only: it owns no sessions, execution state, history or queue. */
 export class DefaultAgentApplicationService implements AgentApplicationService {
   private readonly manager: AgentManager;
+  private readonly models: ModelCatalog;
   private readonly defaults: CreateSessionOptions;
 
   constructor(
     manager: AgentManager,
-    options: DefaultAgentApplicationServiceOptions = {},
+    options: DefaultAgentApplicationServiceOptions,
   ) {
     if (
       typeof options !== 'object' ||
@@ -140,12 +146,25 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     )
       invalid();
     validateCreate(options.defaultSessionOptions);
+    if (
+      !record(options.modelCatalog) ||
+      typeof options.modelCatalog.has !== 'function' ||
+      typeof options.modelCatalog.list !== 'function'
+    )
+      invalid();
+    const defaultModel = options.defaultSessionOptions?.config?.model?.name;
+    if (defaultModel !== undefined && !options.modelCatalog.has(defaultModel))
+      invalid();
     this.manager = manager;
+    this.models = options.modelCatalog;
     this.defaults = options.defaultSessionOptions ?? {};
   }
 
   createSession(options?: CreateSessionOptions): SessionInfo {
     validateCreate(options);
+    const modelId =
+      options?.config?.model?.name ?? this.defaults.config?.model?.name;
+    if (modelId !== undefined && !this.models.has(modelId)) invalid();
     try {
       const session = this.manager.createSession({
         ...this.defaults,
@@ -153,6 +172,40 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
         config: mergeConfig(this.defaults.config, options?.config),
       });
       return Object.freeze({ sessionId: session.sessionId });
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  listModels(): readonly ModelDescriptor[] {
+    try {
+      return this.models.list();
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  getSessionModel(sessionId: string): string {
+    try {
+      const model = this.session(sessionId).getModel();
+      if (model === undefined) throw new Error();
+      return model;
+    } catch (error) {
+      if (error instanceof AgentApplicationError) throw error;
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  setSessionModel(sessionId: string, modelId: string): void {
+    if (
+      typeof modelId !== 'string' ||
+      !modelId.trim() ||
+      !this.models.has(modelId)
+    )
+      invalid();
+    const session = this.session(sessionId);
+    try {
+      session.setModel(modelId);
     } catch {
       throw new AgentApplicationError('operation_failed');
     }
@@ -181,12 +234,14 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     options?: SessionSubmitOptions,
   ): SessionExecution {
     if (typeof input !== 'string' || input.trim().length === 0) invalid();
+    const modelId = options?.config?.model?.name;
     try {
       if (options !== undefined && !record(options)) invalid();
       validateConfig(options?.config, true);
     } catch {
       invalid();
     }
+    if (modelId !== undefined && !this.models.has(modelId)) invalid();
     const session = this.session(sessionId);
     try {
       return session.submit(input, options);

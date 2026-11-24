@@ -1,10 +1,44 @@
 {
-  "model": {
-    "provider": "openai-compatible",
-    "name": "example-model",
-    "baseUrl": "http://localhost:1234/v1",
-    "parameters": { "temperature": 0.7 }
+  "providers": {
+    "local": {
+      "type": "openai-compatible",
+      "baseURL": "http://localhost:1234/v1"
+    },
+    "openai": {
+      "type": "openai-compatible",
+      "baseURL": "https://api.openai.com/v1",
+      "apiKey": "${OPENAI_API_KEY}"
+    },
+    "qwen": {
+      "type": "openai-compatible",
+      "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "apiKey": "${DASHSCOPE_API_KEY}"
+    },
+    "deepseek": {
+      "type": "openai-compatible",
+      "baseURL": "https://api.deepseek.com",
+      "apiKey": "${DEEPSEEK_API_KEY}"
+    },
+    "openai-native": {
+      "type": "openai-responses",
+      "baseURL": "https://api.openai.com/v1",
+      "apiKey": "${OPENAI_API_KEY}"
+    },
+    "deepseek-responses": {
+      "type": "openai-responses",
+      "baseURL": "https://api.deepseek.com",
+      "apiKey": "${DEEPSEEK_API_KEY}"
+    }
   },
+  "models": [
+    "local/example-model",
+    "openai/gpt-4.1-mini",
+    "qwen/qwen-max",
+    "deepseek/deepseek-flash",
+    "openai-native/gpt-4.1-mini",
+    "deepseek-responses/deepseek-flash"
+  ],
+  "defaultModel": "local/example-model",
   "agent": { "maxModelRetries": 2 },
   "cli": { "stream": true },
   "logging": { "level": "info" }

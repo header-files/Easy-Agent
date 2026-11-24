@@ -19,7 +19,7 @@
 
 说明：当前阶段应**实际建立六个一级职责模块目录及其有意义的 README/changes 文档**；这并非空目录。更深层的 Model、Tool、CLI 等子能力目录仍只在 `docs/architecture.md` 规划，实际开发时才创建代码与本地文档；不添加 `.gitkeep` 或空业务 `index.ts`。
 
-`.env.example`、模型 API Key 配置及 CLI 交互命令属于 Phase 1；在 Phase 0 没有使用者时不要提前创建虚假配置。
+模型 API Key 配置及 CLI 交互命令属于后续阶段；在 Phase 0 没有使用者时不要提前创建虚假配置或 `.env` 模板。
 
 ## 2. 推荐工程结构（Phase 0 交付）
 

@@ -50,3 +50,13 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 影响范围：本模块最终验收；既有 Engine 的同类内部快照修复另见 [Engine 变更记录](../execution/engine/changes.md)，Phase 1.1–1.4 公共契约保持不变。
 - 验证：`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 均实际退出码 0。全仓 **216/216** 测试通过，失败 0、跳过 0；原 **187** 项基线保留，本阶段新增 **29** 项（契约 6、Manager 基础 4、真实 Engine 集成 5、错误流边界 4、取消/观察流 9、二进制快照 1）。
 - 现行说明：[README.md](README.md)
+
+### 2026-11-24 — 提交时固化 Session 模型
+
+- 主题 ID：`agent.session-model-selection`
+- 变更前：Session 默认配置可在排队后被后续修改影响尚未启动的任务模型字段读取路径不够明确。
+- 变更后：新增 `getModel` / `setModel`；`submit` 立即合并 Session 默认与 Execution 覆盖并快照完整有效配置，驱动执行时使用该快照，后续 Session 切换不影响已排队任务。
+- 修改原因：Phase 2.1 要求 Execution 提交时固定模型，且切换只影响后续提交。
+- 影响范围：DefaultSessionAgent、Harness SessionAgent 契约与相关测试；FIFO/取消/上下文语义不变。
+- 验证：Application 模型优先级测试与全仓回归通过。
+- 现行说明：[README.md](README.md)。

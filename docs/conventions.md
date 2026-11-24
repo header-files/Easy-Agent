@@ -50,10 +50,10 @@
 
 ## 3. 工程安全与配置
 
-- 使用 `.gitignore` 排除 `node_modules/`、构建产物、开发临时文件、`.env` 和其他密钥文件。
-- 不将 API Key、Token、个人敏感信息写入源码、日志、异常消息、测试快照或示例配置。
+- 使用 `.gitignore` 排除 `node_modules/`、构建产物、开发临时文件、`.env` / `.env.*` 和其他密钥文件；仓库不提供 `.env.example`，也不自动加载 `.env`。
+- 不将 API Key、Token、个人敏感信息写入源码、日志、异常消息、测试快照或会提交的示例配置。
 - Phase 1.1 通过构造参数显式传入 Provider 配置，不自动读取 `.env` 或环境变量；调用方在初始化边界提供 API Key 与 baseURL。
-- Composition 集中解析外部配置，优先级为 CLI 显式选项 > 环境变量 > 配置文件 > 默认值；文件仅显式指定，不自动读取 `.env`。最终有效配置传入 Bootstrap，核心 Loop、SessionAgent 不直接读取 `process.env`。
+- Composition 集中解析外部配置，优先级为 CLI 显式选项 > 环境变量 > 显式 JSON 配置文件 > 默认值；文件仅显式指定。Provider 可用 `${ENV}` 引用**已在进程中的**环境变量，或把密钥写在已被忽略的本地 JSON。最终有效配置传入 Bootstrap，核心 Loop、SessionAgent 不直接读取 `process.env`。
 - Logger 独立使用时保留 createLogger 的 LOG_LEVEL 规则；应用装配统一解析日志级别后显式传给 Logger，避免各组件重新读取进程环境。配置解析和错误不得输出原始配置、密钥、认证头或带凭据 URL。
 - 生成的构建产物、自动化缓存及临时文件不纳入版本控制（除非仓库明确另有要求）。
 

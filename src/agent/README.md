@@ -48,14 +48,15 @@ Agent 不重复拼接当前输入，不解析模型策略，不新增 Loop 次�
 
 创建输入、默认配置、提交配置、Loop 工作上下文、观察事件、最终结果和 `getContext()` 各有独立副本。已知消息、ToolCall、上下文及结果字段校验类型并单次物化；不把 DefaultAgentLoop 的历史配对、模型名或工具参数规则施加给自定义 Loop。
 
-配置按“本次提交覆盖 > Session 默认值”解析：
+配置按“本次提交覆盖 > Session 默认值”解析，并在 **submit 入队时固化**：
 
 1. `model.name` 覆盖或继承；`model.parameters` 按参数键合并。
 2. `tools.allowedNames` 显式提供时整组替换，`[]` 保持为空名单。
 3. `extensions` 按命名空间键合并，覆盖的命名空间值整体替换。
 4. 未提供的字段继承默认值；每次执行的有效配置再次复制，不改变默认值或提交对象。
+5. `getModel()` / `setModel(modelId)` 读写 Session 默认模型；后续切换不影响已排队/运行中的 Execution。
 
-自定义 Loop 可以完全省略 model。创建级 `config.model` 沿用 `AgentLoopContext` 的必需 name 形状；提交级 `model: {}` 表示无变化。提交若仅提供 parameters，却无可继承或显式提供的 model name，会同步安全拒绝，避免构造不符合既有契约的上下文。默认 Loop 的模型名和专属扩展校验仍由 Loop 负责。
+自定义 Loop 可以完全省略 model。创建级 `config.model` 沿用 `AgentLoopContext` 的必需 name 形状；提交级 `model: {}` 表示无变化。提交若仅提供 parameters，却无可继承或显式提供的 model name，会同步安全拒绝，避免构造不符合既有契约的上下文。默认 Loop 的模型名和专属扩展校验仍由 Loop 负责；已注册模型校验由 Application 在提交/切换边界完成。
 
 快照延续既有 Engine 的 unknown 值边界：普通对象/数组、循环与别名、Date、Map、Set、RegExp、ArrayBuffer 和 typed view 复制数据图，保留 BigInt、Symbol、undefined 等值。函数、闭包、带未知内部状态的实例和 Proxy 保留为外部能力引用；未知 accessor 按描述符保留，不主动调用 getter 或 `toJSON`。这些 opaque 能力的内部可变状态无法通用隔离，调用方须自行管理。此边界保留已有 CustomLoop 契约语义，不要求 JSON 化。上下文 `data`、结果 `details` 的不透明数据不因 Agent 调度而被删减。
 

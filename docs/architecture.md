@@ -70,7 +70,7 @@ SessionAgent 是 Engine 事件流的内部唯一消费者，任务从 submit 同
 
 ### 2.5 Runtime
 
-具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions，并复用 Logger 记录生命周期元数据，调用方可直接使用该实例。`src/runtime/tool/` 通过 ToolRegistry/ToolExecutor 契约提供独立工具注册、校验、执行与轻量模型数据桥接；模型与工具不自行互相调用，循环策略由 Execution 的 DefaultAgentLoop 实现，不放入 Runtime。
+具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions、OpenAI Responses，以及启动期 Model Registry / Router；Composition 按 Provider `type` 选择工厂并按 Provider ID 创建独立实例。`src/runtime/tool/` 通过 ToolRegistry/ToolExecutor 契约提供独立工具注册、校验、执行与轻量模型数据桥接；模型与工具不自行互相调用，循环策略由 Execution 的 DefaultAgentLoop 实现，不放入 Runtime。
 
 ### 2.6 Composition / Bootstrap
 
@@ -178,7 +178,7 @@ easy-agent/
 - `node_modules/` 和 `dist/` 为忽略的生成目录；私有单包结构、ESM 与工程工具链保持不变。本阶段通过统一 Service 与 Bootstrap 接入本地 CLI；Session 日志读写和持久化恢复仍未实现。
 - 能力子模块随真实实现创建本地 README/changes，不为其他未来能力建立空目录或占位接口。
 
-Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。模型细则见 [Model Contracts](../src/harness/contracts/model/README.md) / [Runtime Model](../src/runtime/model/README.md)，工具细则见 [Tool Contracts](../src/harness/contracts/tool/README.md) / [Runtime Tool](../src/runtime/tool/README.md)，Loop 规则见 [Phase 1.3](phase-1.3.md) 与 [Execution Loops](../src/execution/loops/README.md)；Engine 基线见 [Phase 1.4](phase-1.4.md) 和 [Execution Engine](../src/execution/engine/README.md)。Agent 行为见 [Phase 1.5](phase-1.5.md)、[Agent 模块](../src/agent/README.md) / [Agent Contracts](../src/harness/contracts/agent/README.md)。当前唯一阶段依据为 [Phase 1.6](phase-1.6.md)，应用接口与装配细节分别见 [Application](../src/application/README.md) 和 [Composition](../src/composition/README.md)。
+Logging 配置与安全规则见 [Runtime Logging](../src/runtime/logging/README.md)。模型细则见 [Model Contracts](../src/harness/contracts/model/README.md) / [Runtime Model](../src/runtime/model/README.md)，工具细则见 [Tool Contracts](../src/harness/contracts/tool/README.md) / [Runtime Tool](../src/runtime/tool/README.md)，Loop 规则见 [Phase 1.3](phase-1.3.md) 与 [Execution Loops](../src/execution/loops/README.md)；Engine 基线见 [Phase 1.4](phase-1.4.md) 和 [Execution Engine](../src/execution/engine/README.md)。Agent 行为见 [Phase 1.5](phase-1.5.md)、[Agent 模块](../src/agent/README.md) / [Agent Contracts](../src/harness/contracts/agent/README.md)。当前唯一阶段依据为 [Phase 2.1](phase-2.1.md)，应用接口与装配细节分别见 [Application](../src/application/README.md) 和 [Composition](../src/composition/README.md)。
 
 ## 6. 应用入口与后续扩展
 

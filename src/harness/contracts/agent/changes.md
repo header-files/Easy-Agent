@@ -15,3 +15,12 @@
 - 验证：独立严格类型检查、6 项契约测试、定向 ESLint 和格式检查通过，之后交接 Agent 实现阶段。
 - 非目标：不引入持久化、Session Event Log、Inbox/Recovery 或 Phase 1.6 装配接口。
 - 关联：[Harness 时间线](../../changes.md)、[唯一阶段设计](../../../../docs/phase-1.5.md)、[项目级记录](../../../../docs/changes.md)。
+
+### 2026-11-24 — SessionAgent 增加模型读写
+
+- 主题 ID：`harness.agent-management-contracts`
+- 变更前：SessionAgent 只有 submit/getContext/cancel。
+- 变更后：新增 `getModel()` / `setModel(modelId)`，用于 Session 默认模型选择；提交时固化语义由默认实现保证，不改变 FIFO/取消/观察契约。
+- 修改原因：Phase 2.1 需要稳定的 Session 模型选择接口供 Application/CLI 使用。
+- 影响范围：SessionAgent 契约、DefaultSessionAgent、Application Service。
+- 验证：契约类型检查与相关离线测试通过。

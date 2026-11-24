@@ -39,3 +39,42 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 影响范围：Composition、Application Service 生命周期包装、根公共导出、CLI 装配和离线测试；Phase 1.1～1.5 公共契约和实现保持原状，无 HTTP/持久化能力。
 - 验证：配置 3 项、Bootstrap 6 项定向离线测试通过；全仓 typecheck、Lint、格式检查、构建和测试均通过，254/254 项成功（既有 216 + 本期 38）。完整结果见 [Phase 1.6](../../docs/phase-1.6.md)，跨模块记录见 [项目变更](../../docs/changes.md)。
 - 现行说明：[README.md](README.md)。
+
+### 2026-11-24 — Phase 2.1 Providers/Models 配置与工厂装配
+
+- 主题 ID：`composition.multi-model-bootstrap`
+- 变更前：单 `model` 配置字段与 `modelClient` / `createModelClient` 单 Provider 装配。
+- 变更后：统一 `providers` / `models` / `defaultModel`；静态 `Provider Type → Factory`；按 Provider ID 创建独立实例并注入 Registry/Router；`providerFactories` 可覆盖内置工厂。删除旧单模型配置兼容与 `--base-url` 相关装配路径。非法 client 返回前已捕获的 dispose 仍参与回滚。
+- 修改原因：Phase 2.1 要求 type 选实现、ID 作实例身份，并集中管理多模型注册。
+- 影响范围：config/bootstrap/lifecycle、示例配置、配置与装配测试、Application 默认模型注入。
+- 验证：配置/Bootstrap 定向测试与全仓 266 项通过。
+- 现行说明：[README.md](README.md)；跨模块摘要见 [项目变更](../../docs/changes.md)。
+
+### 2026-11-24 — 增加 OpenAI / Qwen / DeepSeek Compatible 厂商预设
+
+- 主题 ID：`composition.vendor-compatible-presets`
+- 变更前：仅有通用 `openai-compatible` 与 `openai-responses` 两种 type。
+- 变更后：新增 `openai` / `qwen` / `deepseek` 静态工厂，复用 `OpenAICompatibleModelClient`，分别应用官方默认 baseURL 与 Token 字段；仍按 type 选实现，允许覆盖 baseURL；云厂商预设要求 apiKey。
+- 修改原因：用户要求按官方文档落地三家 OpenAI-compatible Provider，避免手工抄写端点。
+- 影响范围：config/bootstrap、示例配置、Runtime presets、离线测试与模块说明。
+- 验证：`node --test tests/provider-presets.test.ts` 与工程检查。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-24 — 取消厂商预设 type/默认 baseURL
+
+- 主题 ID：`composition.protocol-only-providers`
+- 变更前：存在 `openai` / `qwen` / `deepseek` 厂商 type，并在工厂内硬编码官方 baseURL。
+- 变更后：仅保留协议 type `openai-compatible` 与 `openai-responses`；`baseURL` 配置必填并由用户显式提供；同一协议可用不同 Provider ID 对接任意厂商。
+- 修改原因：用户要求 type 只表达协议实现，不在代码中预设厂商地址或厂商 type。
+- 影响范围：config/bootstrap、示例配置、模块说明与离线测试。
+- 验证：`npm run typecheck` / `lint` / `test`。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-24 — 删除未使用的 .env.example
+
+- 主题 ID：`composition.remove-env-example`
+- 变更前：仓库保留 `.env.example` 作为环境变量清单，文档多处链接。
+- 变更后：删除该文件及 `.gitignore` 例外；文档改为指向 JSON 示例与 `${ENV}` / 进程环境说明。
+- 修改原因：应用不读取 `.env`，用户确认清单文件无运行时用途后要求删除。
+- 影响范围：根目录模板、README/Composition/阶段文档链接。
+- 验证：确认无 dotenv、无代码/测试加载 `.env.example`。

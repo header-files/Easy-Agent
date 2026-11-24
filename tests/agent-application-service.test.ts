@@ -16,6 +16,7 @@ import type {
   AgentLoop,
   AgentLoopContext,
 } from '../src/harness/contracts/agent-loop/index.ts';
+import type { ModelCatalog } from '../src/harness/contracts/model/index.ts';
 import { DefaultAgentManager } from '../src/agent/index.ts';
 import { DefaultExecutionEngine } from '../src/execution/engine/index.ts';
 import type { Logger } from '../src/runtime/logging/index.ts';
@@ -29,6 +30,32 @@ const quiet: Logger = {
     return quiet;
   },
 };
+
+const modelCatalog: ModelCatalog = {
+  has(modelId) {
+    return ['default', 'override', 'other'].includes(modelId);
+  },
+  list() {
+    return [
+      { id: 'default', providerId: 'fixture', modelId: 'default' },
+      { id: 'override', providerId: 'fixture', modelId: 'override' },
+      { id: 'other', providerId: 'fixture', modelId: 'other' },
+    ];
+  },
+};
+
+function application(
+  agentManager: AgentManager,
+  options: Omit<
+    ConstructorParameters<typeof DefaultAgentApplicationService>[1],
+    'modelCatalog'
+  > = {},
+) {
+  return new DefaultAgentApplicationService(agentManager, {
+    modelCatalog,
+    ...options,
+  });
+}
 
 function errorCode(code: AgentApplicationErrorCode) {
   return (error: unknown) =>
@@ -84,6 +111,10 @@ test('Service仅返回Session身份，原样透传提交句柄，可由非CLI适
   let received: CreateSessionOptions | undefined;
   const session: SessionAgent = {
     sessionId: 'session',
+    getModel() {
+      return 'default';
+    },
+    setModel() {},
     submit(input, overrides) {
       assert.equal(input, 'from adapter');
       assert.equal(overrides, submitOptions);
@@ -99,7 +130,7 @@ test('Service仅返回Session身份，原样透传提交句柄，可由非CLI适
   const summaries = [
     { sessionId: 'session', createdAt: '2026-11-24T00:00:00Z', queuedCount: 0 },
   ];
-  const service: AgentApplicationService = new DefaultAgentApplicationService({
+  const service: AgentApplicationService = application({
     createSession(value) {
       received = value;
       return session;
@@ -131,7 +162,7 @@ test('Service连续submit委托原FIFO，无观察者也运行且下一项继承
   const release = deferred();
   const starts: string[] = [];
   const histories: number[] = [];
-  const app = new DefaultAgentApplicationService(
+  const app = application(
     manager({
       async *run(context) {
         starts.push(context.input.content);
@@ -161,7 +192,7 @@ test('Service取消限定所属Session，不同Session执行并发且相互隔�
   const firstEntered = deferred();
   const secondEntered = deferred();
   const release = deferred();
-  const app = new DefaultAgentApplicationService(
+  const app = application(
     manager({
       async *run(context) {
         if (context.input.content === 'A') {
@@ -201,7 +232,7 @@ test('Service取消限定所属Session，不同Session执行并发且相互隔�
 
 test('Service保留忙碌删除false，空闲删除后缺失身份稳定报错且不误建Session', async () => {
   const instance = manager(echo);
-  const app = new DefaultAgentApplicationService(instance);
+  const app = application(instance);
   const { sessionId } = app.createSession();
   const held = instance.getSession(sessionId)!;
   const handle = app.submit(sessionId, 'A');
@@ -225,7 +256,7 @@ test('Service保留忙碌删除false，空闲删除后缺失身份稳定报错�
 });
 
 test('应用级无效输入固定分类，不向Manager提交或把任意输入写入异常', () => {
-  const app = new DefaultAgentApplicationService(manager(echo));
+  const app = application(manager(echo));
   const { sessionId } = app.createSession();
   for (const input of ['', ' \n\t', 42, null])
     assert.throws(
@@ -284,7 +315,7 @@ test('Service默认Session配置按既有参数键/名单/namespace规则覆盖�
   };
   const originalDefaults = structuredClone(defaults);
   const originalOverrides = structuredClone(overrides);
-  const app = new DefaultAgentApplicationService(
+  const app = application(
     manager({
       async *run(context) {
         contexts.push(context);
@@ -324,7 +355,7 @@ test('Service无模型配置支持CustomLoop，错误边界不泄露底层异常
     listSessions: fault,
     deleteSession: fault,
   };
-  const app = new DefaultAgentApplicationService(broken);
+  const app = application(broken);
   for (const operation of [
     () => app.createSession(),
     () => app.listSessions(),
@@ -341,10 +372,65 @@ test('Service无模型配置支持CustomLoop，错误边界不泄露底层异常
     });
   }
   await assert.rejects(app.deleteSession('id'), errorCode('operation_failed'));
-  const custom = new DefaultAgentApplicationService(manager(echo));
+  const custom = application(manager(echo));
   const identity = custom.createSession();
   assert.equal(
     (await custom.submit(identity.sessionId, 'custom').result).status,
     'COMPLETED',
   );
+});
+
+test('Service列出模型并按Execution>Session>Application固定提交模型，切换不影响已排队任务', async () => {
+  const seen: string[] = [];
+  const firstStarted = deferred();
+  const release = deferred();
+  const app = application(
+    manager({
+      async *run(context) {
+        seen.push(context.config.model?.name ?? '');
+        if (context.input.content === 'E1') {
+          firstStarted.resolve();
+          await release.promise;
+        }
+        yield* echo.run(context);
+      },
+    }),
+    {
+      defaultSessionOptions: {
+        config: { model: { name: 'default' } },
+      },
+    },
+  );
+  assert.deepEqual(
+    app.listModels().map((model) => model.id),
+    ['default', 'override', 'other'],
+  );
+  const first = app.createSession();
+  const second = app.createSession({
+    config: { model: { name: 'other' } },
+  });
+  assert.equal(app.getSessionModel(first.sessionId), 'default');
+  assert.equal(app.getSessionModel(second.sessionId), 'other');
+  const e1 = app.submit(first.sessionId, 'E1');
+  await firstStarted.promise;
+  app.setSessionModel(first.sessionId, 'override');
+  assert.equal(app.getSessionModel(first.sessionId), 'override');
+  assert.throws(
+    () => app.setSessionModel(first.sessionId, 'missing/model'),
+    errorCode('invalid_input'),
+  );
+  assert.equal(app.getSessionModel(first.sessionId), 'override');
+  const e2 = app.submit(first.sessionId, 'E2');
+  const e3 = app.submit(first.sessionId, 'E3', {
+    config: { model: { name: 'other' } },
+  });
+  assert.equal(app.getSessionModel(first.sessionId), 'override');
+  release.resolve();
+  assert.equal((await e1.result).status, 'COMPLETED');
+  assert.equal((await e2.result).status, 'COMPLETED');
+  assert.equal((await e3.result).status, 'COMPLETED');
+  assert.deepEqual(seen, ['default', 'override', 'other']);
+  const other = app.submit(second.sessionId, 'isolated');
+  assert.equal((await other.result).status, 'COMPLETED');
+  assert.deepEqual(seen, ['default', 'override', 'other', 'other']);
 });

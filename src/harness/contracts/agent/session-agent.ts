@@ -8,6 +8,10 @@ export interface SessionAgent {
   submit(input: string, options?: SessionSubmitOptions): SessionExecution;
   /** Return a defensive snapshot of the latest successfully committed context. */
   getContext(): AgentLoopContext['context'];
+  /** Current default model for future submissions; queued work is already fixed. */
+  getModel(): string | undefined;
+  /** Replace the default model for future submissions only. */
+  setModel(modelId: string): void;
   /** Accept queued/running cancellation in this session; true is not a terminal acknowledgement. */
   cancel(executionId: string): boolean;
 }

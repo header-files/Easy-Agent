@@ -2,7 +2,7 @@
   "name": "easy-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Easy Agent 本地 CLI、统一应用服务与可替换组件装配",
+  "description": "Easy Agent 本地 CLI、多模型装配与统一应用服务",
   "type": "module",
   "bin": {
     "easy-agent": "dist/application/cli/bin.js"

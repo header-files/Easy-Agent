@@ -149,9 +149,22 @@ test('Manager 摘要支持空闲与运行观察，不泄露公共队列或新增
       AgentLoopContext['context']
     >,
     Assignable<ReturnType<SessionAgent['cancel']>, boolean>,
+    Assignable<ReturnType<SessionAgent['getModel']>, string | undefined>,
+    Assignable<ReturnType<SessionAgent['setModel']>, void>,
     Assignable<Promise<SessionExecution>, ReturnType<SessionAgent['submit']>>,
-  ] = [true, true, true, true, true, true, true, false];
-  assert.deepEqual(checks, [true, true, true, true, true, true, true, false]);
+  ] = [true, true, true, true, true, true, true, true, true, false];
+  assert.deepEqual(checks, [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+  ]);
 });
 
 test('Session 标识与执行句柄的公开属性保持 readonly', () => {

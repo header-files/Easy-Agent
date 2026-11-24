@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.6 Application Service / Composition / CLI，唯一阶段依据为 `docs/phase-1.6.md`；完成后停止，不自动接续 HTTP/Persistence 等后续阶段。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 2.1 多模型与 Provider 管理，唯一阶段依据为 `docs/phase-2.1.md`；完成后停止，不自动接续 Phase 2.2 文件/终端工具等后续阶段。**
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-1.6.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.5 保留各自基线与历史验收。**
+3. **`docs/phase-2.1.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.6 保留各自基线与历史验收。**
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,40 +29,30 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前阶段应该做什么：Phase 1.6
+## 3. 当前阶段应该做什么：Phase 2.1
 
-在已有 Logging、Model、Tool、[Agent Loop](phase-1.3.md)、[Execution Engine](phase-1.4.md) 和 [Agent Management](phase-1.5.md) 基线上，严格执行 [Phase 1.6 唯一设计](phase-1.6.md)：
+在已完成的 Phase 1（含统一 Service、Composition、CLI）基线上，严格执行 [Phase 2.1 唯一设计](phase-2.1.md)：
 
-- Application 定义统一 AgentApplicationService，委托 Manager/SessionAgent 的创建、列表、删除、提交与取消；只验证应用级入参并映射稳定错误，不重复存储上下文或队列。
-- Composition / Bootstrap 集中读取、合并和验证配置，按 CLI 显式选项 > 环境变量 > 配置文件 > 默认值处理；底层组件继续显式注入，不各自读取外部配置。
-- 复用 Phase 1.1～1.5 实现，提供简单组件替换入口、失败回滚和幂等 dispose；只释放自有资源，先请求取消并等待任务协作收尾。
-- 本地 CLI 从 Bootstrap 获取统一 Service，支持 chat、帮助/版本、连续对话、/new、/exit 与 Ctrl+C；不得直接构造或调用 Model/Tool/Loop/Engine。
-- CLI 只将 output_delta 作为流式正文，不重复打印 model_event；事件观察与最终 result 独立处理，观察异常不擅自取消任务或判执行失败。
-- 用注入 Mock ModelClient 的真实装配完成纯离线模型→工具→模型、多轮 Session、隔离、取消、错误与清理测试；多工具保持既有串行策略。
+- 用 Providers + Models + DefaultModel 统一配置替换旧单模型配置；`type` 选实现，Provider ID 只作实例身份。
+- 实现 Model Registry / Router，保持现有 `ModelClient` 契约；Router 不保存 Session 当前模型。
+- Session/Application 按 Execution > Session > Application 选择模型，并在提交时固化。
+- CLI 增加 `/model` 列表与切换；新增 OpenAI Responses Provider，不依赖服务端会话状态。
+- 不进入 Phase 2.2 文件/终端工具、Workspace、Sandbox、审批，也不实现 HTTP/Persistence/MCP/Skills。
+- 用注入 Provider 工厂的真实装配完成纯离线路由、Responses 协议 Fixture、Session 模型固化、CLI `/model` 与既有模型→工具→模型回归；多工具保持既有串行策略。
 
-当前只授权 Phase 1.6；整体顺序为 1.1 Model → 1.2 Tool → 1.3 Loop → 1.4 Engine → 1.5 Agent Management → **1.6 Application Service / Composition / CLI**。此前公共契约与默认策略继续有效。
+当前只授权 Phase 2.1；Phase 1.1～1.6 作为已完成基线继续有效。整体顺序为 1.1 → 1.2 → 1.3 → 1.4 → 1.5 → 1.6 → **2.1 多模型与 Provider 管理**。
 
 ## 4. 不在本次阶段实现的功能
 
+- Phase 2.2 内置文件/终端工具、Workspace、Sandbox 与基础审批。
 - HTTP Server、REST/SSE、Web UI、正式 SDK、CLI 远程模式及 HTTP 专有路由、鉴权或线协议。
-- **Session Event Log 的 JSONL 读取和写入**、Session Write Coordinator、Transaction Journal、持久化事件投影、重放或崩溃恢复。
-- Runtime Event Bus、多订阅者广播、持久化 Inbox、Steer/Follow-up、Approval/HITL、Pause/Resume、Session Tree、Workspace、Memory、上下文压缩及复杂调度。
-- 完整 Turn/Step/Attempt 状态机、工具并行、模型/工具/迭代总次数上限、复杂 DI 或动态插件平台。
-- 擅自修改 Phase 1.1～1.5 公共协议或默认 Loop 策略；不向 Engine ExecutionStatus 加 QUEUED。
-
-Session 的进程内 FIFO 继续由 Agent 负责，Service/CLI/Composition 不重新调度。未来 Session Event Log 的物理读写仍归 Runtime/Persistence，不创建 JSONL 文件、假存储或占位持久化接口。
+- **Session Event Log 的 JSONL 读取和写入**、Transaction Journal、持久化事件投影、重放或崩溃恢复。
+- Runtime Event Bus、持久化 Inbox、Steer/Follow-up、MCP/Skills、模型自动发现、热更新 Provider、Alias/Fallback。
+- 擅自重写 Loop/Engine/FIFO；不向 Engine ExecutionStatus 加 QUEUED。
 
 ## 5. 推荐开发顺序
 
-严格按 A → B → C → D → E 推进；每一步完成对应验证后再开展下一步：
-
-1. A：核对旧契约，实现统一应用服务及稳定应用错误，完成不依赖终端或模型的模块测试。
-2. B：配置优先级与校验、默认装配、可控注入、资源所有权、初始化失败回滚和幂等释放。
-3. C：本地 CLI 交互、实时正文、独立最终结果、Session 切换、显式取消及退出。
-4. D：通过既有组件与 Mock ModelClient 验证真实模型—工具—模型闭环、多轮/隔离、失败和清理。
-5. E：更新模块/项目文档，执行五项工程检查并报告实际结果。
-
-完成后停止，不自动进入 HTTP/Persistence；不把内存历史或观察事件直接写成 Session Event Log。
+严格按 `docs/phase-2.1.md` 的 2.1.0 → 2.1.6 推进；完成后停止，不自动进入 Phase 2.2。
 
 ## 6. 开发与验证约束
 
@@ -101,7 +91,8 @@ Session 的进程内 FIFO 继续由 Agent 负责，Service/CLI/Composition 不�
 | `docs/phase-1.3.md`             | 已完成 Agent Loop 设计与历史验收                                                 |
 | `docs/phase-1.4.md`             | 已完成 Execution Engine 设计与历史验收                                           |
 | `docs/phase-1.5.md`             | 已完成 Agent Management 设计与历史验收                                           |
-| `docs/phase-1.6.md`             | **当前唯一** Application Service、Composition、CLI 与端到端验收依据              |
+| `docs/phase-1.6.md`             | 已完成 Application Service、Composition、CLI 与端到端验收                        |
+| `docs/phase-2.1.md`             | **当前唯一** 多模型与 Provider 管理阶段依据                                      |
 | `docs/phase-1.md`               | Phase 1 阶段顺序索引                                                             |
 | `src/runtime/logging/README.md` | 已完成 Logging 的接口、配置与安全边界                                            |
 | `docs/roadmap.md`               | 后续能力范围，不是本期待办                                                       |

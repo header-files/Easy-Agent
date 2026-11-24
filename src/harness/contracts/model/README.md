@@ -13,12 +13,15 @@
 | 文件                                     | 主要类型及职责                                                                |
 | ---------------------------------------- | ----------------------------------------------------------------------------- |
 | [`model-client.ts`](model-client.ts)     | ModelClient、ModelCallOptions：方法与调用控制                                 |
+| [`model-catalog.ts`](model-catalog.ts)   | ModelDescriptor、ModelCatalog：已注册模型的只读查询与列表                     |
 | [`model-message.ts`](model-message.ts)   | SystemMessage、UserMessage、AssistantMessage、ToolResultMessage、ModelMessage |
 | [`model-request.ts`](model-request.ts)   | ModelRequest、ModelParameters：模型标识、完整消息历史、工具和参数             |
 | [`model-tool.ts`](model-tool.ts)         | ModelToolDefinition、ModelToolCall、ModelToolChoice                           |
 | [`model-response.ts`](model-response.ts) | ModelResponse、ModelFinishReason、ModelUsage                                  |
 | [`model-stream.ts`](model-stream.ts)     | ModelStreamEvent：有序的流式事件联合                                          |
 | [`model-error.ts`](model-error.ts)       | ModelErrorCode、ModelErrorInfo、ModelError                                    |
+
+`ModelCatalog` 只表达显式注册模型的只读视图，不承担路由或网络发现；路由由 Runtime `ModelRouter` 实现现有 `ModelClient` 完成。
 
 `ModelMessage` 通过 `role` 区分 system、user、assistant 和 tool。System/User 只接收文本；Assistant 的 `content` 为 `string | null`，可包含 `toolCalls`；ToolResult 使用 `toolCallId` 关联调用。历史消息由调用方组织，Model System 不持有 Session、Turn 或 Execution。
 

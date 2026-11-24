@@ -4,6 +4,7 @@ import type {
   SessionSubmitOptions,
   SessionSummary,
 } from '../harness/contracts/agent/index.ts';
+import type { ModelDescriptor } from '../harness/contracts/model/index.ts';
 
 export interface SessionInfo {
   readonly sessionId: string;
@@ -12,6 +13,9 @@ export interface SessionInfo {
 /** Transport-neutral application entry; queue, context and execution stay in Agent. */
 export interface AgentApplicationService {
   createSession(options?: CreateSessionOptions): SessionInfo;
+  listModels(): readonly ModelDescriptor[];
+  getSessionModel(sessionId: string): string;
+  setSessionModel(sessionId: string, modelId: string): void;
   listSessions(): SessionSummary[];
   deleteSession(sessionId: string): Promise<boolean>;
   submit(

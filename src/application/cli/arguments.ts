@@ -18,15 +18,15 @@ export const help = `用法：easy-agent chat [选项]
 
 选项：
   --config <path>              读取指定的 JSON 配置文件
-  --model <name>               模型名称
-  --base-url <url>             OpenAI-compatible API 根地址
+  --model <provider/model>     应用默认模型（必须已在配置中注册）
   --max-model-retries <count>  模型失败后的额外重试次数
   --no-stream                 仅显示最终答案
 
 配置优先级：CLI > 环境变量 > 配置文件 > 默认值。
-环境变量：EASY_AGENT_MODEL、EASY_AGENT_BASE_URL、OPENAI_API_KEY、
-          EASY_AGENT_MAX_MODEL_RETRIES、EASY_AGENT_STREAM、LOG_LEVEL。
-交互命令：/new 新建并切换 Session，/exit 退出，Ctrl+C 取消当前任务。
+环境变量：EASY_AGENT_DEFAULT_MODEL、EASY_AGENT_MAX_MODEL_RETRIES、
+          EASY_AGENT_STREAM、LOG_LEVEL；Provider 字段可引用 \${ENV_NAME}。
+交互命令：/model 查看或切换模型，/new 新建并切换 Session，
+          /exit 退出，Ctrl+C 取消当前任务。
 Session 仅保存在本次进程内存中。
 `;
 
@@ -38,11 +38,7 @@ export function parseChatArguments(args: readonly string[]): ChatArguments {
       result.overrides.cli = { stream: false };
       continue;
     }
-    if (
-      !['--config', '--model', '--base-url', '--max-model-retries'].includes(
-        flag ?? '',
-      )
-    )
+    if (!['--config', '--model', '--max-model-retries'].includes(flag ?? ''))
       throw new CliArgumentError();
     const value = args[++index];
     if (value === undefined || !value.trim() || value.startsWith('--'))
@@ -52,10 +48,7 @@ export function parseChatArguments(args: readonly string[]): ChatArguments {
         result.filePath = value;
         break;
       case '--model':
-        result.overrides.model = { ...result.overrides.model, name: value };
-        break;
-      case '--base-url':
-        result.overrides.model = { ...result.overrides.model, baseUrl: value };
+        result.overrides.defaultModel = value;
         break;
       case '--max-model-retries':
         if (!/^\d+$/.test(value)) throw new CliArgumentError();

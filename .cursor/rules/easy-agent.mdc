@@ -1,11 +1,11 @@
 ---
-description: Easy Agent project-wide architecture, current Phase 1.6 and change history policy
+description: Easy Agent project-wide architecture, current Phase 2.1 and change history policy
 alwaysApply: true
 ---
 
-这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-1.6.md`**，需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
+这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-2.1.md`**，需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
 
-**当前仅执行 Phase 1.6 Application Service / Composition / CLI，唯一阶段依据为 `docs/phase-1.6.md`，按 A→B→C→D→E 实施。** 复用 Phase 1.1～1.5 公共契约，统一 Service 委托 Agent 管理；Composition 集中解析配置、装配与管理资源；CLI 只适配终端输入输出、通过 Service 提交和取消。保持 submit 同步入队、同 Session FIFO、不同 Session 并发、成功上下文提交以及事件观察/最终结果独立的既有语义，不重新实现 Loop、Engine 或调度。不得重复渲染 model_event 与 output_delta；取消等待协作收尾。保持旧公共协议和默认串行工具策略，不实现 HTTP Server、Session Event Log JSONL 读写、事务、持久化、重放/恢复、Event Bus/SSE、持久化 Inbox、Steer/Follow-up 或审批，完成 Phase 1.6 后停止。
+**当前仅执行 Phase 2.1 多模型与 Provider 管理，唯一阶段依据为 `docs/phase-2.1.md`。** 复用 Phase 1 公共契约与执行能力；用 Providers + Models + DefaultModel、Registry/Router 和静态 `Provider Type → Factory` 替换旧单模型配置/装配，不维护兼容层。模型选择优先级为 Execution > Session > Application，并在提交时固化。CLI 通过 `/model` 列表与切换；新增 OpenAI Responses Provider，不依赖 `previous_response_id` / Conversations。保持 submit 同步入队、同 Session FIFO、不同 Session 并发、成功上下文提交以及事件观察/最终结果独立的既有语义，不重新实现 Loop、Engine 或调度。完成本阶段后停止，不自动进入 Phase 2.2。
 
 运行日志统一使用 `src/runtime/logging` 的 Logger 门面、结构化字段和 stderr；涉及日志先读其 README/changes。不直接依赖 Pino，不记录密钥、完整消息或请求/响应正文；Model/Tool 生命周期日志遵循各能力域的字段白名单，不记录原始参数、工具结果或异常载荷。文件轮转、远端服务、Session 事件与 trace 系统不在当前范围。
 

@@ -42,3 +42,40 @@
 - 影响范围：OpenAI-compatible 的流式组装和非流式消息映射、模型离线测试及现行说明；Harness Model 公共契约不变。
 - 验证（2026-11-24）：`node --test tests/model-runtime.test.ts` 25 项通过；全仓五项工程检查通过，`npm test` 256 项通过、0 失败、0 跳过（Phase 1.6 交付基线 254 项 + 本次新增 2 项）。
 - 现行说明：[README.md](README.md)、[Phase 1.1 流式协议](../../../docs/phase-1.1.md)。
+
+## 2026-11-24 — Phase 2.1 多模型 Registry/Router 与 Responses Provider
+
+- 主题 ID：`runtime.multi-model-routing`
+- 变更前：仅有 OpenAI-compatible Adapter；无显式模型目录、路由或多 Provider 实例管理；无 Responses 协议实现。
+- 变更后：新增 `DefaultModelRegistry` / `parseModelId` / `ModelRouter`，以及 `OpenAIResponsesModelClient`（本地完整历史、`function_call` / `function_call_output`、流式事件与统一错误）。Router 实现现有 ModelClient，按完整模型标识路由并转发上游 Model ID；生命周期日志模块名支持 Responses。
+- 修改原因：落实 Phase 2.1，在不改动 Loop/Engine 公共契约的前提下支持多模型与原生 Responses。
+- 影响范围：本模块、Composition 装配、Harness Model Catalog、离线 routing/responses 测试；不引入热更新、Fallback、Alias 或服务端会话状态。
+- 验证：定向 `tests/model-routing.test.ts`、`tests/openai-responses.test.ts` 与全仓 `npm test` 266 项通过；真实 API 待手动验证。
+- 关联：[Composition](../../composition/changes.md)、[项目级记录](../../../docs/changes.md)、[Phase 2.1](../../../docs/phase-2.1.md)。
+
+### 2026-11-24 — Responses input 对齐官方 message item 形态
+
+- 主题 ID：`runtime.multi-model-routing`
+- 变更前：Responses 请求把 system/user/assistant 文本写成仅含 `role`/`content` 的对象，工具 schema 未显式声明 `strict`。
+- 变更后：文本历史映射为 `{ type: 'message', role, content }`；函数工具声明显式 `strict: false`，避免默认严格模式改写 Schema。
+- 修改原因：对照官方 Responses / Function Calling 文档，收紧原生 fetch 适配边界，降低真实 API 拒识风险。
+- 影响范围：`providers/openai-responses/request.ts` 与离线协议测试；公共契约不变。
+- 验证：`node --test tests/openai-responses.test.ts`。
+
+### 2026-11-24 — 增加 OpenAI/Qwen/DeepSeek Compatible 官方预设常量
+
+- 主题 ID：`runtime.multi-model-routing`
+- 变更前：Compatible Adapter 只有通用配置，无厂商默认端点表。
+- 变更后：新增 `OPENAI_COMPATIBLE_PRESETS`，记录 OpenAI / 百炼 Qwen / DeepSeek 官方 OpenAI-compatible baseURL 与 Token 字段偏好，供 Composition 工厂使用。
+- 修改原因：对照三家官方文档固化默认可连接地址，且不把 Provider ID 当成厂商判断依据。
+- 影响范围：`providers/openai-compatible/presets.ts`、模块导出与文档。
+- 验证：`tests/provider-presets.test.ts`。
+
+### 2026-11-24 — Adapter 取消默认 baseURL，删除厂商预设常量
+
+- 主题 ID：`runtime.protocol-only-endpoints`
+- 变更前：Compatible/Responses 客户端缺省回落到 `https://api.openai.com/v1`；另有 `OPENAI_COMPATIBLE_PRESETS` 厂商表。
+- 变更后：客户端 `baseURL` 必填；删除预设常量与导出；端点完全由调用方传入。
+- 修改原因：与 Composition 协议-only 配置对齐，避免代码内隐式厂商地址。
+- 影响范围：两个 Adapter、模块导出、README 与相关离线测试。
+- 验证：模型相关测试与全仓回归。

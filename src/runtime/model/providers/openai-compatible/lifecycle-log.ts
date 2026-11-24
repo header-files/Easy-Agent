@@ -11,12 +11,13 @@ import {
 } from '../../../logging/index.ts';
 import { safeFields } from '../../../logging/redact.ts';
 
-const module = 'runtime.model.openai-compatible';
+const defaultModule = 'runtime.model.openai-compatible';
 
 /** A broken diagnostic backend must never determine a model request's result. */
 export function clientLogger(
   logger: Logger | undefined,
   apiKey: string | undefined,
+  module = defaultModule,
 ): Logger | undefined {
   try {
     return logger === undefined

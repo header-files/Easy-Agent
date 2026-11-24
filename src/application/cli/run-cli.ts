@@ -120,7 +120,7 @@ export async function runCli(
     if (!exiting) {
       let sessionId = application.service.createSession().sessionId;
       output.write(
-        'Easy Agent — /new 新会话，/exit 退出，Ctrl+C 取消当前任务。\n',
+        'Easy Agent — /model 模型，/new 新会话，/exit 退出，Ctrl+C 取消当前任务。\n',
       );
       const terminal = Boolean(
         'isTTY' in input && input.isTTY && 'isTTY' in output && output.isTTY,
@@ -143,8 +143,30 @@ export async function runCli(
           output.write('[已切换至新 Session]\n');
           continue;
         }
+        if (command === '/model') {
+          const current = application.service.getSessionModel(sessionId);
+          output.write(
+            `${application.service
+              .listModels()
+              .map(
+                (model) => `${model.id === current ? '* ' : '  '}${model.id}`,
+              )
+              .join('\n')}\n`,
+          );
+          continue;
+        }
+        if (command.startsWith('/model ')) {
+          const modelId = command.slice('/model '.length).trim();
+          try {
+            application.service.setSessionModel(sessionId, modelId);
+            output.write(`[当前模型：${modelId}]\n`);
+          } catch {
+            error.write('模型未注册或标识无效，当前 Session 模型未改变。\n');
+          }
+          continue;
+        }
         if (command.startsWith('/')) {
-          error.write('未知交互命令。可使用 /new 或 /exit。\n');
+          error.write('未知交互命令。可使用 /model、/new 或 /exit。\n');
           continue;
         }
         try {

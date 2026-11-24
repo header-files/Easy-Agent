@@ -49,3 +49,13 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 影响范围：Application 父模块、CLI 子模块、CLI 单元和集成入口；原 Service 的传输中立性与 Phase 1.1～1.5 公共契约保持不变，无 HTTP 或持久化实现。
 - 验证：CLI 定向 12/12 项通过，npm run typecheck、定向 ESLint/Prettier 通过；整体实测由 [Phase 1.6](../../docs/phase-1.6.md) 验收记录维护。
 - 详细记录：[CLI changes](cli/changes.md)，现行说明：[CLI README](cli/README.md)、[Application README](README.md)。
+
+### 2026-11-24 — Application 模型目录与 Session 切换
+
+- 主题 ID：`application.model-catalog`
+- 变更前：Service 只委托 Session 提交/取消，不暴露已注册模型列表或 Session 模型切换。
+- 变更后：要求注入 `modelCatalog`；新增 `listModels` / `getSessionModel` / `setSessionModel`；创建、提交与切换均校验已注册模型，无效切换不污染 Session。
+- 修改原因：为 CLI `/model` 与未来适配器提供传输中立的模型管理入口。
+- 影响范围：Application Service、lifecycle 转发、CLI、离线测试。
+- 验证：`tests/agent-application-service.test.ts` 与 CLI/集成回归通过。
+- 现行说明：[README.md](README.md)、[CLI README](cli/README.md)。

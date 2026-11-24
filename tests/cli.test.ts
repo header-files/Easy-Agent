@@ -47,7 +47,17 @@ function io(input: Readable = Readable.from([])) {
 
 function config(stream = true): EasyAgentConfig {
   return resolveConfig({
-    overrides: { model: { name: 'offline' }, cli: { stream } },
+    fileConfig: {
+      providers: {
+        fixture: {
+          type: 'openai-compatible',
+          baseURL: 'https://provider.invalid/v1',
+        },
+      },
+      models: ['fixture/offline', 'fixture/other'],
+      defaultModel: 'fixture/offline',
+      cli: { stream },
+    },
   });
 }
 
@@ -84,11 +94,33 @@ function application(
 ) {
   let created = 0;
   let disposed = 0;
+  const models = new Map<string, string>();
   const submitted: { sessionId: string; input: string }[] = [];
   const cancelled: { sessionId: string; executionId: string }[] = [];
   const service: AgentApplicationService = {
     createSession() {
-      return { sessionId: `session-${++created}` };
+      const sessionId = `session-${++created}`;
+      models.set(sessionId, 'fixture/offline');
+      return { sessionId };
+    },
+    listModels() {
+      return [
+        {
+          id: 'fixture/offline',
+          providerId: 'fixture',
+          modelId: 'offline',
+        },
+        { id: 'fixture/other', providerId: 'fixture', modelId: 'other' },
+      ];
+    },
+    getSessionModel(sessionId) {
+      return models.get(sessionId)!;
+    },
+    setSessionModel(sessionId, modelId) {
+      if (!['fixture/offline', 'fixture/other'].includes(modelId)) {
+        throw new AgentApplicationError('invalid_input');
+      }
+      models.set(sessionId, modelId);
     },
     listSessions() {
       return [];
@@ -115,6 +147,9 @@ function application(
     app,
     submitted,
     cancelled,
+    currentModel(sessionId: string) {
+      return models.get(sessionId);
+    },
     get created() {
       return created;
     },
@@ -156,7 +191,7 @@ test('CLI选项仅映射到统一loadConfig，配置交给Bootstrap', async () =
   const streams = io(Readable.from(['/exit\n']));
   const instance = application();
   let loaded: LoadConfigOptions | undefined;
-  const env = { EASY_AGENT_MODEL: 'environment' };
+  const env = { EASY_AGENT_DEFAULT_MODEL: 'fixture/offline' };
   const final = config(false);
   const result = await runCli(
     [
@@ -164,9 +199,7 @@ test('CLI选项仅映射到统一loadConfig，配置交给Bootstrap', async () =
       '--config',
       'example.json',
       '--model',
-      'selected',
-      '--base-url',
-      'http://localhost:8080/v1',
+      'fixture/other',
       '--max-model-retries',
       '0',
       '--no-stream',
@@ -189,12 +222,36 @@ test('CLI选项仅映射到统一loadConfig，配置交给Bootstrap', async () =
     filePath: 'example.json',
     env,
     overrides: {
-      model: { name: 'selected', baseUrl: 'http://localhost:8080/v1' },
+      defaultModel: 'fixture/other',
       agent: { maxModelRetries: 0 },
       cli: { stream: false },
     },
   });
   assert.equal(instance.disposed, 1);
+});
+
+test('CLI /model列出注册模型并只切换当前Session，无效选择保持原值', async () => {
+  const streams = io(
+    Readable.from([
+      '/model\n/model fixture/other\n/model\n/new\n/model\n/model missing/x\n/model\n/exit\n',
+    ]),
+  );
+  const instance = application();
+  const result = await runCli(['chat'], {
+    ...streams,
+    async loadConfig() {
+      return config();
+    },
+    async bootstrap() {
+      return instance.app;
+    },
+  });
+  assert.equal(result, 0);
+  assert.equal(instance.currentModel('session-1'), 'fixture/other');
+  assert.equal(instance.currentModel('session-2'), 'fixture/offline');
+  assert.match(streams.text.output, /\* fixture\/other/);
+  assert.match(streams.text.output, /\* fixture\/offline/);
+  assert.match(streams.text.error, /模型未注册或标识无效/);
 });
 
 test('管道多轮、空行、未知命令、new与exit保持顺序，正文不重复打印', async () => {

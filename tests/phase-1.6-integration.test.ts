@@ -8,6 +8,7 @@ import {
   bootstrap,
   resolveConfig,
   type EasyAgentApplication,
+  type EasyAgentConfig,
 } from '../src/composition/index.ts';
 import { SessionEventBufferOverflowError } from '../src/agent/index.ts';
 import type { SessionExecution } from '../src/harness/contracts/agent/index.ts';
@@ -90,11 +91,37 @@ function lastInput(request: ModelRequest): string {
 
 function config() {
   return resolveConfig({
-    overrides: {
-      model: { name: 'offline-model' },
+    fileConfig: {
+      providers: {
+        fixture: {
+          type: 'openai-compatible',
+          baseURL: 'https://provider.invalid/v1',
+        },
+      },
+      models: ['fixture/offline-model'],
+      defaultModel: 'fixture/offline-model',
       agent: { maxModelRetries: 0 },
     },
   });
+}
+
+function provider(client: ModelClient) {
+  return {
+    providerFactories: {
+      'openai-compatible': () => ({ client }),
+    },
+  } as const;
+}
+
+function cliOptions(client: ModelClient) {
+  return {
+    env: {},
+    async loadConfig() {
+      return config();
+    },
+    bootstrap: (effective: EasyAgentConfig) =>
+      bootstrap(effective, { ...provider(client), logger: quiet }),
+  };
 }
 
 function capture(onWrite?: (text: string) => void) {
@@ -136,13 +163,11 @@ test('CLI通过真实装配实时展示output_delta，model_event不重复正文
     };
     yield { type: 'message_end', response: final };
   });
-  const running = runCli(['chat', '--model', 'offline-model'], {
+  const running = runCli(['chat'], {
     input,
     output: output.stream,
     error: errors.stream,
-    env: {},
-    bootstrap: (effective) =>
-      bootstrap(effective, { modelClient: client, logger: quiet }),
+    ...cliOptions(client),
   }).then((code) => {
     completed = true;
     return code;
@@ -171,14 +196,17 @@ test('CLI多轮继承上下文且/new创建空历史，不删除旧Session或把
     requests.push(structuredClone(request));
     return response(request, `answer-${lastInput(request)}`);
   });
-  const exitCode = await runCli(['chat', '--model', 'offline-model'], {
+  const exitCode = await runCli(['chat'], {
     input: Readable.from(['first\nsecond\n/new\nthird\n/exit\n']),
     output: output.stream,
     error: errors.stream,
     env: {},
+    async loadConfig() {
+      return config();
+    },
     bootstrap: async (effective) => {
       const app = await bootstrap(effective, {
-        modelClient: client,
+        ...provider(client),
         logger: quiet,
       });
       return {
@@ -229,14 +257,17 @@ test('真实bootstrap贯通模型→默认add工具→模型，结果与提交�
     });
     return response(request, '2 + 3 = 5');
   });
-  const exitCode = await runCli(['chat', '--model', 'offline-model'], {
+  const exitCode = await runCli(['chat'], {
     input: Readable.from(['add two and three\n/exit\n']),
     output: output.stream,
     error: errors.stream,
     env: {},
+    async loadConfig() {
+      return config();
+    },
     bootstrap: async (effective) => {
       const app = await bootstrap(effective, {
-        modelClient: client,
+        ...provider(client),
         logger: quiet,
       });
       const delegate = app.service;
@@ -305,7 +336,7 @@ test('同一模型响应的多个ToolCall经真实ToolExecutor严格串行并按
     return response(request, 'serial result');
   });
   const app = await bootstrap(config(), {
-    modelClient: client,
+    ...provider(client),
     logger: quiet,
     tools: [
       {
@@ -371,7 +402,7 @@ test('真实ToolRuntime将工具业务失败安全回填，模型可继续完成
     return response(request, 'The tool failed; no result was produced.');
   });
   const app = await bootstrap(config(), {
-    modelClient: client,
+    ...provider(client),
     logger: quiet,
     tools: [
       {
@@ -441,15 +472,18 @@ test('CLI Ctrl+C显式调用Service取消并等待真实模型流清理后显示
       closed = true;
     }
   });
-  const running = runCli(['chat', '--model', 'offline-model'], {
+  const running = runCli(['chat'], {
     input,
     output: output.stream,
     error: errors.stream,
     env: {},
     signals,
+    async loadConfig() {
+      return config();
+    },
     bootstrap: async (effective) => {
       application = await bootstrap(effective, {
-        modelClient: client,
+        ...provider(client),
         logger: quiet,
       });
       const delegate = application.service;
@@ -504,13 +538,11 @@ test('模型失败经真实链路呈现FAILED，未提交部分上下文且下�
     }
     yield* response(request, 'recovered-answer');
   });
-  const exitCode = await runCli(['chat', '--model', 'offline-model'], {
+  const exitCode = await runCli(['chat'], {
     input: Readable.from(['fail\nrecover\n/exit\n']),
     output: output.stream,
     error: errors.stream,
-    env: {},
-    bootstrap: (effective) =>
-      bootstrap(effective, { modelClient: client, logger: quiet }),
+    ...cliOptions(client),
   });
   assert.equal(exitCode, 1);
   assert.equal(requests.length, 2);
@@ -543,7 +575,7 @@ test('Service观察提前退出或默认缓冲溢出均不取消执行，成功�
       },
     };
   });
-  const app = await bootstrap(config(), { modelClient: client, logger: quiet });
+  const app = await bootstrap(config(), { ...provider(client), logger: quiet });
   try {
     const session = app.service.createSession();
     const detached = app.service.submit(session.sessionId, 'detach');
@@ -585,7 +617,7 @@ test('共享装配组件下跨Session真实模型调用并发，同Session仍FIF
     }
     yield* response(request, `answer-${lastInput(request)}`);
   });
-  const app = await bootstrap(config(), { modelClient: client, logger: quiet });
+  const app = await bootstrap(config(), { ...provider(client), logger: quiet });
   try {
     const first = app.service.createSession();
     const second = app.service.createSession();

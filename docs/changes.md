@@ -240,3 +240,42 @@
 - 影响范围：版本元数据、里程碑发布说明、项目级文档与 CLI 版本 smoke test；不改动既有架构、公共契约或业务行为，不启动 Phase 2 开发。
 - 实际验证：2026-11-24，`npm run typecheck`、`npm run lint`（0 警告）、`npm run format:check`、`npm run build`、`npm test` 全部退出码 0，**256 项离线测试通过、0 失败、0 跳过**（Phase 1.6 254 项 + Model `null` 占位回归 2 项）；源码及构建后 CLI `--help` / `--version`（`easy-agent 0.1.0`）验证通过。
 - 现行规范：[README](../README.md)、[Phase 1 索引与总验收](phase-1.md)、[v0.1.0 Release Notes](releases/v0.1.0.md)、[路线图](roadmap.md)。
+
+### 2026-11-24 — Phase 2.1：从单模型装配迁移到多模型 Registry/Router
+
+- 主题 ID：`runtime.multi-model-routing`
+- 变更前：Composition 使用 Phase 1 单 `model` 配置与单 Provider Bootstrap；Session/CLI 不能在已注册模型间切换；仅有 OpenAI-compatible Adapter。
+- 变更后：统一 `providers` / `models` / `defaultModel` 配置；静态 `Provider Type → Factory` 创建独立 Provider 实例；新增 Model Registry、Model Router、OpenAI Responses Provider；Application/Session 在提交时按 Execution > Session > Application 固化模型；CLI 增加 `/model`。删除旧单模型配置与 `--base-url` / `EASY_AGENT_MODEL` 入口，不保留兼容层。
+- 修改原因：用户授权 Phase 2.1，要求显式多模型管理、按类型装配 Provider，并接入 Responses 协议，同时保持既有 Loop/Engine/FIFO 语义。
+- 影响范围：Runtime Model、Composition、Harness Model Catalog、Agent Session 模型字段、Application Service、CLI、示例配置与离线测试；不进入 Phase 2.2。
+- 模块记录：[Runtime Model](../src/runtime/model/changes.md)、[Composition](../src/composition/changes.md)、[Application](../src/application/changes.md)、[CLI](../src/application/cli/changes.md)、[Agent](../src/agent/changes.md)、[Model Contracts](../src/harness/contracts/model/changes.md)、[Agent Contracts](../src/harness/contracts/agent/changes.md)。
+- 实际验证：2026-11-24，`npm run typecheck` / `lint` / `format:check` / `build` / `test` 全部通过，**266** 项离线测试通过；真实远程 API 待手动验证。
+- 现行规范：[Phase 2.1](phase-2.1.md)、[Runtime Model](../src/runtime/model/README.md)、[Composition](../src/composition/README.md)、[路线图](roadmap.md)。
+
+### 2026-11-24 — 增加 OpenAI / Qwen / DeepSeek OpenAI-compatible 厂商预设
+
+- 主题 ID：`runtime.vendor-compatible-presets`
+- 变更前：多模型装配只有通用 Compatible 与 Responses 两类 type。
+- 变更后：新增 `openai` / `qwen` / `deepseek` Provider Type，默认分别对接官方 Chat Completions 兼容端点；仍由 type→factory 选择实现，Provider ID 保持自由命名。
+- 修改原因：用户要求查询三家官方文档并落地 OpenAI-compatible Providers。
+- 影响范围：Composition 配置/Bootstrap、Runtime presets、示例配置与离线测试。
+- 模块记录：[Composition](../src/composition/changes.md)、[Runtime Model](../src/runtime/model/changes.md)。
+- 现行规范：[Composition README](../src/composition/README.md)、[Runtime Model README](../src/runtime/model/README.md)。
+
+### 2026-11-24 — Provider 配置收敛为协议 type + 用户 baseURL
+
+- 主题 ID：`runtime.protocol-only-providers`
+- 变更前：短暂引入过 `openai` / `qwen` / `deepseek` 厂商预设 type 与默认端点。
+- 变更后：仅 `openai-compatible` / `openai-responses`；配置与 Adapter 均要求显式 `baseURL`，不再在代码中预设厂商地址。
+- 修改原因：用户反馈厂商预设 type/默认 URL 逻辑混乱。
+- 影响范围：Composition、Runtime Model Adapters、示例配置、阶段文档示例。
+- 模块记录：[Composition](../src/composition/changes.md)、[Runtime Model](../src/runtime/model/changes.md)。
+
+### 2026-11-24 — 删除 .env.example 并同步规范文档
+
+- 主题 ID：`docs.remove-env-example`
+- 变更前：仓库保留 `.env.example`，README / Composition / 阶段文档将其当作环境变量清单。
+- 变更后：删除该文件；现行文档改为只说明 JSON 示例、`${ENV}` 与进程环境变量；明确不提供也不自动加载 `.env` 模板。
+- 修改原因：运行时从不读取该文件，用户要求删除后补齐文档一致。
+- 影响范围：根 README、Composition / CLI 说明、`docs/conventions.md`、`docs/phase-0.md`、`docs/phase-2.1.md`。
+- 模块记录：[Composition](../src/composition/changes.md)。

@@ -21,7 +21,23 @@ import { createLogger } from '../src/runtime/logging/index.ts';
 
 const logger = createLogger({ destination: { write() {} } });
 const config = () =>
-  resolveConfig({ fileConfig: { model: { name: 'offline' } } });
+  resolveConfig({
+    fileConfig: {
+      providers: {
+        fixture: {
+          type: 'openai-compatible',
+          baseURL: 'https://provider.invalid/v1',
+        },
+      },
+      models: ['fixture/offline'],
+      defaultModel: 'fixture/offline',
+    },
+  });
+const factory = (client: ModelClient) => ({
+  providerFactories: {
+    'openai-compatible': () => ({ client }),
+  },
+});
 function deferred() {
   let resolve!: () => void;
   const promise = new Promise<void>((yes) => {
@@ -56,7 +72,7 @@ test('Bootstrap默认装配不发网络，注入Model贯通多轮上下文与Ses
   await direct.dispose();
   const seen: ModelRequest[] = [];
   const app = await bootstrap(config(), {
-    modelClient: textModel(seen),
+    ...factory(textModel(seen)),
     logger,
   });
   try {
@@ -87,32 +103,38 @@ test(
     let disposed = 0;
     const app = await bootstrap(config(), {
       logger,
-      createModelClient: () => ({
-        client: {
-          generate() {
-            throw new Error();
+      providerFactories: {
+        'openai-compatible': () => ({
+          client: {
+            generate() {
+              throw new Error();
+            },
+            async *stream(request, options): AsyncIterable<ModelStreamEvent> {
+              try {
+                entered.resolve();
+                await new Promise<void>((resolve) => {
+                  if (options?.signal?.aborted) resolve();
+                  else
+                    options?.signal?.addEventListener(
+                      'abort',
+                      () => resolve(),
+                      {
+                        once: true,
+                      },
+                    );
+                });
+                yield { type: 'message_start', model: request.model };
+              } finally {
+                cleaning.resolve();
+                await release.promise;
+              }
+            },
           },
-          async *stream(request, options): AsyncIterable<ModelStreamEvent> {
-            try {
-              entered.resolve();
-              await new Promise<void>((resolve) => {
-                if (options?.signal?.aborted) resolve();
-                else
-                  options?.signal?.addEventListener('abort', () => resolve(), {
-                    once: true,
-                  });
-              });
-              yield { type: 'message_start', model: request.model };
-            } finally {
-              cleaning.resolve();
-              await release.promise;
-            }
+          dispose() {
+            disposed++;
           },
-        },
-        dispose() {
-          disposed++;
-        },
-      }),
+        }),
+      },
     });
     const session = app.service.createSession();
     const first = app.service.submit(session.sessionId, 'running');
@@ -188,17 +210,19 @@ test(
   },
 );
 
-test('初始化中途失败逆序回滚owned Model；共享注入不自动释放，失败消息不泄密', async () => {
+test('初始化中途失败逆序回滚Provider；失败消息不泄密', async () => {
   let released = 0;
   await assert.rejects(
     bootstrap(config(), {
       logger,
-      createModelClient: () => ({
-        client: textModel(),
-        dispose() {
-          released++;
-        },
-      }),
+      providerFactories: {
+        'openai-compatible': () => ({
+          client: textModel(),
+          dispose() {
+            released++;
+          },
+        }),
+      },
       tools: [
         {
           spec: {
@@ -216,24 +240,24 @@ test('初始化中途失败逆序回滚owned Model；共享注入不自动释放
       error instanceof BootstrapError && error.stage === 'tools',
   );
   assert.equal(released, 1);
-  const client = Object.assign(textModel(), {
-    dispose() {
-      released++;
-    },
+  const app = await bootstrap(config(), {
+    ...factory(textModel()),
+    logger,
   });
-  const app = await bootstrap(config(), { modelClient: client, logger });
   await app.dispose();
   assert.equal(released, 1);
   await assert.rejects(
     bootstrap(config(), {
       logger,
-      createModelClient() {
-        throw new Error('private-key-never-output');
+      providerFactories: {
+        'openai-compatible'() {
+          throw new Error('private-key-never-output');
+        },
       },
     }),
     (error: unknown) =>
       error instanceof BootstrapError &&
-      error.stage === 'model' &&
+      error.stage === 'providers' &&
       !String(error.stack).includes('private-key-never-output'),
   );
 });
@@ -242,13 +266,15 @@ test('资源释放失败仍只执行一次并返回稳定安全错误', async ()
   let releases = 0;
   const app = await bootstrap(config(), {
     logger,
-    createModelClient: () => ({
-      client: textModel(),
-      dispose() {
-        releases++;
-        throw new Error('private-release-value');
-      },
-    }),
+    providerFactories: {
+      'openai-compatible': () => ({
+        client: textModel(),
+        dispose() {
+          releases++;
+          throw new Error('private-release-value');
+        },
+      }),
+    },
   });
   const closing = app.dispose();
   await assert.rejects(
@@ -304,12 +330,14 @@ test('dispose在外部cancel重入时也使用同一Promise；owned无效Model�
   await assert.rejects(
     bootstrap(config(), {
       logger,
-      createModelClient: () => ({
-        client: {} as ModelClient,
-        dispose() {
-          released++;
-        },
-      }),
+      providerFactories: {
+        'openai-compatible': () => ({
+          client: {} as ModelClient,
+          dispose() {
+            released++;
+          },
+        }),
+      },
     }),
     BootstrapError,
   );
@@ -322,7 +350,9 @@ test('dispose在外部cancel重入时也使用同一Promise；owned无效Model�
   };
   const second = await bootstrap(config(), {
     logger,
-    createModelClient: () => owned,
+    providerFactories: {
+      'openai-compatible': () => owned,
+    },
   });
   owned.dispose = () => {
     throw new Error('changed-later');

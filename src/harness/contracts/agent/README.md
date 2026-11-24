@@ -4,13 +4,13 @@
 
 **Phase 1.5 已定义公共契约。** 本模块定义 AgentManager、SessionAgent 及单次提交句柄，不实现队列、模型调用或事件缓存。唯一阶段设计见 [`docs/phase-1.5.md`](../../../../docs/phase-1.5.md)。公共入口为 [`index.ts`](index.ts)。
 
-| 文件                                           | 公共接口                                                             |
-| ---------------------------------------------- | -------------------------------------------------------------------- |
-| [`agent-manager.ts`](agent-manager.ts)         | AgentManager：createSession、getSession、listSessions、deleteSession |
-| [`session-agent.ts`](session-agent.ts)         | SessionAgent：sessionId、submit、getContext、cancel                  |
-| [`session-execution.ts`](session-execution.ts) | SessionExecution：只读 executionId、events、result                   |
-| [`session-options.ts`](session-options.ts)     | CreateSessionOptions、SessionSubmitOptions                           |
-| [`session-summary.ts`](session-summary.ts)     | SessionSummary：ID、创建时间、可选运行 ID、有效排队数量              |
+| 文件                                           | 公共接口                                                                |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| [`agent-manager.ts`](agent-manager.ts)         | AgentManager：createSession、getSession、listSessions、deleteSession    |
+| [`session-agent.ts`](session-agent.ts)         | SessionAgent：sessionId、submit、getContext、getModel、setModel、cancel |
+| [`session-execution.ts`](session-execution.ts) | SessionExecution：只读 executionId、events、result                      |
+| [`session-options.ts`](session-options.ts)     | CreateSessionOptions、SessionSubmitOptions                              |
+| [`session-summary.ts`](session-summary.ts)     | SessionSummary：ID、创建时间、可选运行 ID、有效排队数量                 |
 
 类型直接引用已有 AgentLoop、AgentLoopContext、ExecutionEvent、ExecutionResult 和 ModelParameters，不复制旧定义，不依赖默认 Loop、具体 Engine 实现或 Provider SDK。Phase 1.1–1.4 公共契约保持不变。
 
@@ -48,7 +48,7 @@ Session 在**任务实际开始时**取得最新已提交上下文，不能在 s
 
 getContext、创建输入和执行输入之间必须隔离常见可变数据，至少防御复制标准消息、工具调用、参数数组与 JSON-like data；不改变旧 Context 的 unknown 扩展边界，不宣称任意函数、闭包或外部私有对象都能绝对深复制。具体 opaque 引用限制由默认实现说明。
 
-SessionSubmitOptions 仅覆盖 config，不临时替换 Loop。优先级为本次覆盖 > Session 默认值：model.name 覆盖名称，model.parameters 按参数键合并，tools.allowedNames 整组替换（[] 禁用本次工具），extensions 按命名空间键合并、同名命名空间的值整体替换，不做不透明策略内部的递归合并。默认值、提交对象和最终配置不能通过共享普通对象被相互改写。
+SessionSubmitOptions 仅覆盖 config，不临时替换 Loop。优先级为本次覆盖 > Session 默认值：model.name 覆盖名称，model.parameters 按参数键合并，tools.allowedNames 整组替换（[] 禁用本次工具），extensions 按命名空间键合并、同名命名空间的值整体替换，不做不透明策略内部的递归合并。默认实现应在 submit 时固化有效配置，使之后的 Session 模型切换不影响已排队任务。默认值、提交对象和最终配置不能通过共享普通对象被相互改写。`getModel` / `setModel` 仅管理 Session 默认模型。
 
 仅参数的模型覆盖需要可继承的默认名称，或同时提供 name；最终 Context 如包含 model，仍必须满足既有类型。Loop 专属策略由对应 Loop 校验，Agent 不添加模型、工具或循环次数上限。
 

@@ -2,13 +2,13 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Phase 1（Phase 1.1～1.6）MVP 已完成，里程碑版本 `v0.1.0`，本地 CLI 可运行。**
+**项目状态：Phase 1 MVP（`v0.1.0`）已完成；Phase 2.1 多模型与 Provider 管理已完成，本地 CLI 可切换模型。**
 
-Easy Agent 已完成 Phase 0 工程基线、统一 Logging 以及 Phase 1.1～1.6（Model、Tool、DefaultAgentLoop、DefaultExecutionEngine、Agent Management、统一 Application Service、Composition / Bootstrap 与本地 CLI），形成完整的模型—串行工具—模型闭环、内存多轮 Session、同 Session FIFO、跨 Session 并发、协作式取消与独立事件/结果观察。详细发布说明见 [v0.1.0 Release Notes](docs/releases/v0.1.0.md)。
+Easy Agent 已完成 Phase 0 工程基线、统一 Logging、Phase 1.1～1.6（Model、Tool、Loop、Engine、Agent Management、Application Service、Composition / CLI）以及 [Phase 2.1](docs/phase-2.1.md)（Providers/Models 配置、Registry/Router、Session/CLI `/model`、OpenAI Responses Provider）。Phase 1 发布说明见 [v0.1.0 Release Notes](docs/releases/v0.1.0.md)。
 
-2026-11-24 里程碑验收中，五项工程检查全部通过，**256 项离线测试通过、0 失败、0 跳过**（在 Phase 1.6 交付的 254 项基础上，含 2 项 Model Runtime `null` 占位兼容回归用例）；各子阶段的历史验收记录（76 / 109 / 146→151 / 187 / 216 / 254）保留于对应阶段文档，汇总见 [Phase 1 索引](docs/phase-1.md)。
+Phase 2.1 验收中，五项工程检查全部通过，**266 项离线测试通过、0 失败、0 跳过**。Phase 1 各子阶段历史验收数字保留于对应文档，汇总见 [Phase 1 索引](docs/phase-1.md)。
 
-**当前尚未实现的能力（留待 Phase 2+）**：HTTP Server / REST / SSE、远程 CLI、Web UI、正式 npm SDK 发布、Session Event Log JSONL 读写与持久化/重放/恢复、Transaction Journal、Event Bus、持久化 Inbox、Steer / Follow-up、Approval / HITL、MCP / Skill / Memory / 上下文压缩 / Workspace / Sandbox、工具并行执行，以及日志轮转与分布式 Tracing。本地 `npm link` 安装与真实在线模型烟测均不属于自动化验收前置条件。
+**当前尚未实现的能力（留待 Phase 2.2+）**：内置文件/终端工具、Workspace / Sandbox、基础审批、HTTP Server / REST / SSE、远程 CLI、Web UI、正式 npm SDK 发布、Session Event Log JSONL 读写与持久化/重放/恢复、Transaction Journal、Event Bus、持久化 Inbox、Steer / Follow-up、MCP / Skill / Memory / 上下文压缩、工具并行执行，以及日志轮转与分布式 Tracing。本地 `npm link` 安装与真实在线模型烟测均不属于自动化验收前置条件。
 
 ## 产品定位
 
@@ -26,12 +26,12 @@ Easy Agent 首先是一个能够直接使用的 Agent 产品，同时为开发�
 
 ## 使用方式与交付阶段
 
-| 使用方式 | 目标能力                                         | 预计阶段         |
-| -------- | ------------------------------------------------ | ---------------- |
-| CLI      | 配置模型、多轮对话、流式输出、Session 切换与取消 | Phase 1.6 已完成 |
-| SDK      | 开发者在应用中调用 Agent                         | Phase 2 逐步完善 |
-| HTTP API | 远程交互及 SSE 流式输出                          | Phase 2          |
-| Web UI   | 可视化交互                                       | 后续阶段         |
+| 使用方式 | 目标能力                                              | 预计阶段               |
+| -------- | ----------------------------------------------------- | ---------------------- |
+| CLI      | 配置/切换模型、多轮对话、流式输出、Session 切换与取消 | Phase 1.6 + 2.1 已完成 |
+| SDK      | 开发者在应用中调用 Agent                              | Phase 2 逐步完善       |
+| HTTP API | 远程交互及 SSE 流式输出                               | Phase 2                |
+| Web UI   | 可视化交互                                            | 后续阶段               |
 
 ## 工程使用
 
@@ -48,15 +48,15 @@ npm run build
 npm test
 ```
 
-| 命令                             | 作用                                                         |
-| -------------------------------- | ------------------------------------------------------------ |
-| `npm run chat -- --model <name>` | 启动本地聊天，模型连接信息由统一配置边界读取                 |
-| `npm run typecheck`              | 严格检查 `src/` 与 `tests/` 的 TypeScript 类型，不生成文件   |
-| `npm run lint`                   | 使用 ESLint 检查 TypeScript 源码、测试与 JavaScript 工程配置 |
-| `npm run format:check`           | 使用 Prettier 检查代码、配置与文档格式                       |
-| `npm run format`                 | 使用 Prettier 修复格式                                       |
-| `npm run build`                  | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
-| `npm test`                       | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
+| 命令                              | 作用                                                         |
+| --------------------------------- | ------------------------------------------------------------ |
+| `npm run chat -- --config <path>` | 启动本地聊天，Providers/Models 由统一配置边界读取            |
+| `npm run typecheck`               | 严格检查 `src/` 与 `tests/` 的 TypeScript 类型，不生成文件   |
+| `npm run lint`                    | 使用 ESLint 检查 TypeScript 源码、测试与 JavaScript 工程配置 |
+| `npm run format:check`            | 使用 Prettier 检查代码、配置与文档格式                       |
+| `npm run format`                  | 使用 Prettier 修复格式                                       |
+| `npm run build`                   | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
+| `npm test`                        | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
 `src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop/Execution/Agent 契约、DefaultAgentLoop、DefaultExecutionEngine、DefaultAgentManager、SessionEventBufferOverflowError、统一 AgentApplicationService、配置解析和 bootstrap。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理、Engine 生命周期/取消/快照、Session FIFO/上下文/取消、观察流与独立结果、配置/装配/CLI、端到端模型工具闭环及日志安全。该私有包尚未作为 Agent SDK 发布。
 
@@ -69,9 +69,9 @@ Git 主分支为 `main`，远程 `origin` 为 `git@github.com:header-files/Easy-
 依赖安装后，在仓库根目录启动：
 
 ```bash
-npm run chat -- --model your-model-id
-# 或显式读取无密钥的示例配置；需将模型名/地址改为可用服务
 npm run chat -- --config easy-agent.config.example.json
+# 或覆盖已注册的默认模型
+npm run chat -- --config easy-agent.config.example.json --model local/example-model
 npm run chat -- --help
 node src/application/cli/bin.ts --version
 ```
@@ -80,28 +80,27 @@ node src/application/cli/bin.ts --version
 
 ```bash
 npm run build
-node dist/application/cli/bin.js chat --model your-model-id
+node dist/application/cli/bin.js chat --config easy-agent.config.example.json
 node dist/application/cli/bin.js --help
 node dist/application/cli/bin.js --version
 ```
 
 包的 `bin` 名称为 `easy-agent`；完成本地包链接后对应命令为 `easy-agent chat`。仓库直接运行方式为上述 npm/Node 命令，本次未将 `npm link` 作为安装或验收前置步骤。
 
-API Key 使用 `OPENAI_API_KEY`，不提供密钥命令行选项。配置优先级为 **CLI 显式选项 > 环境变量 > 显式 JSON 文件 > 内置默认值**；不自动读取 `.env` 或查找用户配置文件。
+配置采用 **Providers + Models + DefaultModel**：`providers.<id>.type` 选择实现（`openai-compatible` / `openai-responses`），Provider ID 只是实例名；`models` 显式登记 `providerId/modelId`。Provider 字段可用 `${ENV_NAME}` 整串引用环境变量。配置优先级为 **CLI 显式选项 > 环境变量 > 显式 JSON 文件 > 内置默认值**；不自动读取 `.env` 或查找用户配置文件。不保留 Phase 1 单模型配置。
 
-| 配置                 | CLI 选项                      | 环境变量                       | 默认值                         |
-| -------------------- | ----------------------------- | ------------------------------ | ------------------------------ |
-| 模型名称             | `--model <name>`              | `EASY_AGENT_MODEL`             | 必填                           |
-| Provider 地址        | `--base-url <url>`            | `EASY_AGENT_BASE_URL`          | Adapter 默认 OpenAI `/v1` 地址 |
-| API Key              | —                             | `OPENAI_API_KEY`               | 可选，允许无认证本地服务       |
-| 模型失败后的额外重试 | `--max-model-retries <count>` | `EASY_AGENT_MAX_MODEL_RETRIES` | `2`                            |
-| 实时正文             | `--no-stream` 关闭            | `EASY_AGENT_STREAM`            | `true`                         |
-| 日志级别             | —                             | `LOG_LEVEL`                    | `info`                         |
-| JSON 配置路径        | `--config <path>`             | —                              | 不自动读取文件                 |
+| 配置                 | CLI 选项                      | 环境变量                                | 默认值 / 规则          |
+| -------------------- | ----------------------------- | --------------------------------------- | ---------------------- |
+| 默认模型             | `--model <provider/model>`    | `EASY_AGENT_DEFAULT_MODEL`              | 必须已在 `models` 注册 |
+| Provider 连接        | JSON `providers.*`            | 可用 `${ENV}` 引用，如 `OPENAI_API_KEY` | 按 Provider type 校验  |
+| 模型失败后的额外重试 | `--max-model-retries <count>` | `EASY_AGENT_MAX_MODEL_RETRIES`          | `2`                    |
+| 实时正文             | `--no-stream` 关闭            | `EASY_AGENT_STREAM`                     | `true`                 |
+| 日志级别             | —                             | `LOG_LEVEL`                             | `info`                 |
+| JSON 配置路径        | `--config <path>`             | —                                       | 不自动读取文件         |
 
-[示例配置](easy-agent.config.example.json) 使用无认证本地服务占位地址和示例模型名；[环境变量示例](.env.example) 仅供参考，不会自动加载。模型参数在 JSON 的 `model.parameters` 中设置。地址、凭据、非法重试次数等由统一配置入口安全校验；连接配置不放入多轮消息历史。
+[示例配置](easy-agent.config.example.json) 同时演示 Compatible 与 Responses；Provider 可用 `${ENV_NAME}` 引用进程环境变量（不自动加载 `.env`）。地址、凭据、非法重试次数等由统一配置入口安全校验；连接配置不放入多轮消息历史。
 
-每轮输入等待独立最终结果后再处理下一行。`/new` 创建并切换到新的空 Session，旧 Session 仍留在当前进程；`/exit` 正常清理退出。执行期间 Ctrl+C 显式请求取消当前任务，等待实际终态后可继续输入；空闲时 Ctrl+C 退出。EOF 处理完已接收输入后清理。Session 仅在内存中，退出后不恢复。
+每轮输入等待独立最终结果后再处理下一行。`/model` 列出已注册模型并标出当前 Session 模型；`/model <id>` 切换当前 Session 默认模型。`/new` 创建并切换到新的空 Session，旧 Session 仍留在当前进程；`/exit` 正常清理退出。执行期间 Ctrl+C 显式请求取消当前任务，等待实际终态后可继续输入；空闲时 Ctrl+C 退出。EOF 处理完已接收输入后清理。Session 仅在内存中，退出后不恢复。
 
 正文只根据 `output_delta` 实时输出，不重复打印模型事件或工具结果。最终结果是权威答案；观察流异常仍等待最终结果，必要时补足或明确替换此前预览。失败会显示清晰错误，不透传原始堆栈/敏感配置；`--no-stream` 只显示最终答案。详细交互与限制见 [CLI README](src/application/cli/README.md)。
 
@@ -128,7 +127,7 @@ try {
 }
 ```
 
-默认装配复用已有模型、工具、Loop、Engine 和 Manager，注册无外部副作用的 `add({a,b})` 工具；多工具仍由既有 Loop 串行执行。可通过 `bootstrap(config, { modelClient: mock })` 注入离线模型，也可替换 Loop/Engine/Manager；外部共享依赖仍归调用方所有。自有模型工厂可返回 `{client, dispose?}`，由 Bootstrap 管理回滚与释放。
+默认装配按 `Provider Type → Factory → Instance → Registry → Router` 注入统一 ModelClient，并复用工具、Loop、Engine 和 Manager；注册无外部副作用的 `add({a,b})` 工具，多工具仍由既有 Loop 串行执行。可通过 `providerFactories` 注入离线 Provider，也可替换 Loop/Engine/Manager；外部共享依赖仍归调用方所有。自有 Provider 工厂可返回 `{client, dispose?}`，由 Bootstrap 管理回滚与释放。
 
 `dispose()` 幂等：先关闭提交入口，取消并等待经本应用 Service 提交的未结算任务，再逆序释放自有资源。取消/清理保持协作边界，不设置隐藏超时或假称任意底层副作用已停止。准确 API、配置和所有权见 [Application](src/application/README.md) 与 [Composition](src/composition/README.md)。
 

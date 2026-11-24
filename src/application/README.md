@@ -19,27 +19,30 @@
 
 ## 当前实现状态
 
-Phase 1.6 已实现统一的 `AgentApplicationService`、默认轻量实现及本地 CLI。CLI 通过 Composition 获取同一个 Service 门面；HTTP、SDK 和 Web UI 尚未实现。
+Phase 1.6 已实现统一的 `AgentApplicationService`、默认轻量实现及本地 CLI；Phase 2.1 增加已注册模型目录与 Session 模型切换。CLI 通过 Composition 获取同一个 Service 门面；HTTP、SDK 和 Web UI 尚未实现。
 
 公共入口为 [`index.ts`](index.ts)：
 
-- [`agent-application-service.ts`](agent-application-service.ts)：Service 契约、只读 `SessionInfo` 与稳定应用错误。
-- [`default-agent-application-service.ts`](default-agent-application-service.ts)：仅依赖 Harness `AgentManager` / `SessionAgent` 公共能力，不依赖模型、工具或默认执行策略。
+- [`agent-application-service.ts`](agent-application-service.ts)：Service 契约、只读 `SessionInfo`、模型列表/切换与稳定应用错误。
+- [`default-agent-application-service.ts`](default-agent-application-service.ts)：依赖 Harness `AgentManager` / `SessionAgent` 与只读 `ModelCatalog`，不创建 Model/Tool/Loop/Engine。
 - [`cli/index.ts`](cli/index.ts)：可注入 IO、信号、配置加载和 Bootstrap 的 `runCli`；[`cli/bin.ts`](cli/bin.ts) 是无导入执行副作用的命令入口。完整交互与输出规则见 [CLI README](cli/README.md)。
 
 ```typescript
 import { DefaultAgentApplicationService } from './src/application/index.ts';
 
-// manager 由 Composition 创建；service 本身不创建 Model/Tool/Loop/Engine。
+// manager / modelCatalog 由 Composition 创建；service 本身不创建 Model/Tool/Loop/Engine。
 const service = new DefaultAgentApplicationService(manager, {
+  modelCatalog,
   defaultSessionOptions: {
     config: {
-      model: { name: 'example-model' },
+      model: { name: 'local/example-model' },
       extensions: { defaultAgentLoop: { maxModelRetries: 2 } },
     },
   },
 });
 const { sessionId } = service.createSession();
+service.listModels();
+service.setSessionModel(sessionId, 'local/example-model');
 const execution = service.submit(sessionId, '你好');
 const result = await execution.result;
 // execution.events 可独立观察；不观察也会由 Agent 内部执行。
@@ -47,7 +50,7 @@ const result = await execution.result;
 
 `createSession()` 只返回冻结的身份对象，不向传输适配器暴露 SessionAgent。`submit()` 原样返回 SessionExecution，不存储第二份上下文、队列、事件缓存或执行状态。输入必须为非空白字符串；这一限制属于交互入口，不改变自定义 Loop 可以通过底层 Session 提交空串的契约。
 
-构造选项 `defaultSessionOptions` 由 Bootstrap 持有，服务生命周期内不应变更。创建 Session 时，显式 loop/context 覆盖默认值；模型名覆盖、模型参数按键合并、工具 `allowedNames` 整组替换（包括 `[]`）、extensions 按命名空间整体替换，不做递归深合并。最终合法性和 Session 快照仍由 Manager 负责；每轮覆盖直接交给既有 Session.submit 处理。
+构造必须提供 `modelCatalog`。`defaultSessionOptions` 由 Bootstrap 持有，服务生命周期内不应变更。创建 Session 时，显式 loop/context 覆盖默认值；模型名覆盖、模型参数按键合并、工具 `allowedNames` 整组替换（包括 `[]`）、extensions 按命名空间整体替换，不做递归深合并。默认模型、创建覆盖与 Execution 覆盖均需已注册；无效切换在改写 Session 前拒绝。最终合法性和 Session 快照仍由 Manager 负责；每轮覆盖直接交给既有 Session.submit 处理，由 Session 在提交时固化。
 
 `AgentApplicationError.code` 是应用层稳定分类：`invalid_input`、`session_not_found`、`operation_failed`、`application_disposed`（供 Bootstrap 生命周期包装使用）。消息固定，不拼接输入、配置或底层异常，也不附带原始 cause。查询不存在 Session 时不自动创建；提交、取消和删除均明确报错。忙碌删除仍返回 `false`；未知、其他 Session 或已经结算的 executionId 取消返回 `false`。取消 `true` 只是请求受理，实际终态仍以 result 为准。
 
@@ -56,21 +59,21 @@ Service 无终端、HTTP、环境读取或资源释放逻辑。应用关闭及�
 ## 本地 CLI
 
 ```bash
-npm run chat -- --model example-model
+npm run chat -- --config easy-agent.config.example.json
 node src/application/cli/bin.ts --help
 npm run build
-node dist/application/cli/bin.js chat --model example-model
+node dist/application/cli/bin.js chat --config easy-agent.config.example.json
 ```
 
-CLI 支持多轮输入、`/new` 新建并切换 Session、`/exit` 顺序退出，以及 Ctrl+C 显式取消当前 Execution。每轮等待独立最终结果后处理下一条输入，保留管道多行和 EOF；不复制 Agent FIFO。观察流失败不会取消执行，结果完成前不会释放应用。
+CLI 支持多轮输入、`/model` 查看与切换模型、`/new` 新建并切换 Session、`/exit` 顺序退出，以及 Ctrl+C 显式取消当前 Execution。每轮等待独立最终结果后处理下一条输入，保留管道多行和 EOF；不复制 Agent FIFO。观察流失败不会取消执行，结果完成前不会释放应用。
 
 仅打印 `output_delta` 作为实时正文，模型原始 text_delta 不重印；模型工具往返按 message_start 划分预览，最终回答一致时不重复打印、缺少后缀时补足。非一致最终结果明确标为替换预览。配置统一由 [Composition](../composition/README.md) 解析，Provider 密钥不进入 Session config 或错误输出。
 
 ## 验证
 
-`node --test tests/agent-application-service.test.ts` 覆盖共享非 CLI 调用、句柄透传、FIFO 与最新上下文、跨 Session 取消隔离、忙碌删除、应用错误安全及默认配置覆盖。使用 Fake Manager 和真实 DefaultAgentManager/DefaultExecutionEngine 的离线协作；无模型、工具、网络或密钥依赖。
+`node --test tests/agent-application-service.test.ts` 覆盖共享非 CLI 调用、句柄透传、FIFO 与最新上下文、跨 Session 取消隔离、忙碌删除、应用错误安全、默认配置覆盖及模型优先级/固化。使用 Fake Manager 和真实 DefaultAgentManager/DefaultExecutionEngine 的离线协作；无网络或密钥依赖。
 
-`node --test tests/cli.test.ts` 的 12 项 CLI 测试覆盖参数映射、帮助/版本、顺序输入、新 Session、实时输出与模型往返去重、权威结果补足、观察错误、最终结果拒绝、Ctrl+C、初始化退出和清理。完整工程与端到端实测见 [Phase 1.6](../../docs/phase-1.6.md)。
+`node --test tests/cli.test.ts` 覆盖参数映射、帮助/版本、`/model`、顺序输入、新 Session、实时输出与模型往返去重、权威结果补足、观察错误、最终结果拒绝、Ctrl+C、初始化退出和清理。完整工程与端到端实测见 [Phase 2.1](../../docs/phase-2.1.md)。
 
 ## 后续实现范围
 

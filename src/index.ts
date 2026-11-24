@@ -8,8 +8,14 @@ export type {
 } from './runtime/logging/index.ts';
 export * from './harness/contracts/model/index.ts';
 export {
+  DefaultModelRegistry,
+  ModelRouter,
   OpenAICompatibleModelClient,
+  OpenAIResponsesModelClient,
+  parseModelId,
   type OpenAICompatibleConfig,
+  type OpenAIResponsesConfig,
+  type ResolvedModel,
 } from './runtime/model/index.ts';
 export * from './harness/contracts/tool/index.ts';
 export {

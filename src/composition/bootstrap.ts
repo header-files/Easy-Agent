@@ -12,14 +12,21 @@ import type { ModelClient } from '../harness/contracts/model/index.ts';
 import type { RegisteredTool } from '../harness/contracts/tool/index.ts';
 import { createLogger, type Logger } from '../runtime/logging/index.ts';
 import {
+  DefaultModelRegistry,
+  ModelRouter,
   OpenAICompatibleModelClient,
-  type OpenAICompatibleConfig,
+  OpenAIResponsesModelClient,
 } from '../runtime/model/index.ts';
 import {
   DefaultToolExecutor,
   DefaultToolRegistry,
 } from '../runtime/tool/index.ts';
-import { resolveConfig, type EasyAgentConfig } from './config.ts';
+import {
+  resolveConfig,
+  type EasyAgentConfig,
+  type ProviderConfig,
+  type ProviderType,
+} from './config.ts';
 import { registerDemoTool } from './demo-tool.ts';
 import { manageLifecycle } from './lifecycle.ts';
 
@@ -28,17 +35,21 @@ export interface OwnedModelClient {
   client: ModelClient;
   dispose?: () => Awaitable<void>;
 }
+export interface ProviderFactoryConfig extends ProviderConfig {
+  providerId: string;
+}
+export type ProviderFactory = (
+  config: ProviderFactoryConfig,
+  logger: Logger,
+) => Awaitable<OwnedModelClient>;
+
 export interface BootstrapOptions {
-  /** Injected shared instances remain owned by the caller. */
-  modelClient?: ModelClient;
   loop?: AgentLoop;
   engine?: ExecutionEngine;
   manager?: AgentManager;
   logger?: Logger;
-  /** A small owned-resource factory seam; mutually exclusive with modelClient. */
-  createModelClient?: (
-    config: OpenAICompatibleConfig,
-  ) => Awaitable<OwnedModelClient>;
+  /** Overrides static built-in factories by provider type; Provider IDs never select implementations. */
+  providerFactories?: Partial<Record<ProviderType, ProviderFactory>>;
   /** Additional explicitly registered tools; the default add tool stays available. */
   tools?: readonly RegisteredTool[];
 }
@@ -61,7 +72,33 @@ export class BootstrapError extends Error {
   }
 }
 
-/** Assembles existing public components; no scheduling, Loop algorithm or transport policy. */
+const builtInFactories: Record<ProviderType, ProviderFactory> = {
+  'openai-compatible': (config, logger) => ({
+    client: new OpenAICompatibleModelClient({
+      logger,
+      baseURL: config.baseURL,
+      ...(config.apiKey === undefined ? {} : { apiKey: config.apiKey }),
+    }),
+  }),
+  'openai-responses': (config, logger) => ({
+    client: new OpenAIResponsesModelClient({
+      logger,
+      baseURL: config.baseURL,
+      ...(config.apiKey === undefined ? {} : { apiKey: config.apiKey }),
+    }),
+  }),
+};
+
+function validClient(client: ModelClient): boolean {
+  return (
+    client !== null &&
+    typeof client === 'object' &&
+    typeof client.generate === 'function' &&
+    typeof client.stream === 'function'
+  );
+}
+
+/** Static provider factories create immutable startup instances; runtime mutation is unsupported. */
 export async function bootstrap(
   input: EasyAgentConfig,
   options: BootstrapOptions = {},
@@ -82,59 +119,61 @@ export async function bootstrap(
   }
   try {
     if (
-      options.modelClient !== undefined &&
-      options.createModelClient !== undefined
-    )
+      typeof options !== 'object' ||
+      options === null ||
+      Array.isArray(options)
+    ) {
       throw new Error();
+    }
+    const customFactories = options.providerFactories ?? {};
+    for (const factory of Object.values(customFactories)) {
+      if (typeof factory !== 'function') throw new Error();
+    }
     stage = 'logging';
+    const secrets = Object.values(config.providers)
+      .map((provider) => provider.apiKey)
+      .filter((value): value is string => Boolean(value));
     const logger =
       options.logger ??
       createLogger({
         module: 'composition.bootstrap',
         level: config.logging.level,
         env: {},
-        redactValues: config.model.apiKey ? [config.model.apiKey] : [],
+        redactValues: secrets,
       });
+    stage = 'providers';
+    const clients = new Map<string, ModelClient>();
+    for (const [providerId, provider] of Object.entries(config.providers)) {
+      const factory =
+        customFactories[provider.type] ?? builtInFactories[provider.type];
+      const owned = await factory({ providerId, ...provider }, logger);
+      if (!owned) throw new Error();
+      // Capture dispose before validating the client so invalid returns still roll back.
+      const release = owned.dispose;
+      if (release !== undefined) {
+        if (typeof release !== 'function') throw new Error();
+        releases.push(() => release.call(owned));
+      }
+      if (!validClient(owned.client)) throw new Error();
+      clients.set(providerId, owned.client);
+    }
+    stage = 'model-registry';
+    const modelRegistry = new DefaultModelRegistry(clients, config.models);
+    const router = new ModelRouter(modelRegistry);
+
     let manager = options.manager;
     if (manager === undefined) {
       let loop = options.loop;
       if (loop === undefined) {
-        stage = 'model';
-        let model = options.modelClient;
-        if (model === undefined) {
-          const provider: OpenAICompatibleConfig = {
-            logger,
-            ...(config.model.baseUrl === undefined
-              ? {}
-              : { baseURL: config.model.baseUrl }),
-            ...(config.model.apiKey === undefined
-              ? {}
-              : { apiKey: config.model.apiKey }),
-          };
-          if (options.createModelClient === undefined)
-            model = new OpenAICompatibleModelClient(provider);
-          else {
-            const owned = await options.createModelClient(provider);
-            const release = owned.dispose;
-            if (typeof release === 'function')
-              releases.push(() => release.call(owned));
-            model = owned.client;
-          }
-        }
-        if (
-          !model ||
-          typeof model.generate !== 'function' ||
-          typeof model.stream !== 'function'
-        )
-          throw new Error();
         stage = 'tools';
         const registry = new DefaultToolRegistry();
         registerDemoTool(registry);
-        for (const { spec, handler } of options.tools ?? [])
+        for (const { spec, handler } of options.tools ?? []) {
           registry.register(spec, handler);
+        }
         const executor = new DefaultToolExecutor(registry, { logger });
         stage = 'loop';
-        loop = new DefaultAgentLoop(model, registry, executor);
+        loop = new DefaultAgentLoop(router, registry, executor);
       }
       stage = 'engine';
       const engine = options.engine ?? new DefaultExecutionEngine({ logger });
@@ -143,14 +182,10 @@ export async function bootstrap(
     }
     stage = 'application';
     const delegate = new DefaultAgentApplicationService(manager, {
+      modelCatalog: modelRegistry,
       defaultSessionOptions: {
         config: {
-          model: {
-            name: config.model.name,
-            ...(config.model.parameters === undefined
-              ? {}
-              : { parameters: config.model.parameters }),
-          },
+          model: { name: config.defaultModel },
           extensions: {
             defaultAgentLoop: { maxModelRetries: config.agent.maxModelRetries },
           },
@@ -179,11 +214,12 @@ export async function bootstrap(
   } catch {
     const cleanupFailed = await releaseAll();
     const error = new BootstrapError('initialization_failed', stage);
-    if (cleanupFailed)
+    if (cleanupFailed) {
       Object.defineProperty(error, 'cleanupFailed', {
         value: true,
         enumerable: true,
       });
+    }
     throw error;
   }
 }
