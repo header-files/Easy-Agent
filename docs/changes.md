@@ -230,3 +230,13 @@
 - 影响范围：Runtime Model 的流式与非流式映射；Harness 公共契约和 Loop 策略不变。
 - 模块记录：[Runtime Model](../src/runtime/model/changes.md)、[Runtime](../src/runtime/changes.md)。
 - 现行规范：[Runtime Model](../src/runtime/model/README.md)、[Phase 1.1](phase-1.1.md)。
+
+### 2026-11-24 — Phase 1 MVP 里程碑收尾并定版 v0.1.0
+
+- 主题 ID：`delivery.phase-1-mvp`
+- 变更前：Phase 1.1～1.6 已全部实现并通过各子阶段验收，但包版本仍为 `0.0.0`，项目首页、路线图和 Phase 1 索引仍停留在 Phase 1.6 开发态，缺少 `v0.1.0` Release Notes。
+- 变更后：正式将 Phase 1（Phase 1.1～1.6）MVP 里程碑定版为 `v0.1.0`；将 `package.json`、`package-lock.json` 与编译后 CLI `--version` 烟测同步为 `0.1.0`；新增 [v0.1.0 Release Notes](releases/v0.1.0.md)，并更新 `README.md`、`docs/roadmap.md`、`docs/phase-1.md` 明确已完成能力与 Phase 2+ 未实现边界。同步修正 `src/composition/changes.md` 过时占位语句并补记 `src/runtime/model/changes.md` 2026-11-24 验证结果。
+- 修改原因：Phase 1 全部子阶段与真实模型兼容修复已就绪，需要形成版本一致、文档准确且可追溯的首个 MVP 里程碑基线，为后续打 `v0.1.0` Git Tag 与发布 GitHub Release 做准备。
+- 影响范围：版本元数据、里程碑发布说明、项目级文档与 CLI 版本 smoke test；不改动既有架构、公共契约或业务行为，不启动 Phase 2 开发。
+- 实际验证：2026-11-24，`npm run typecheck`、`npm run lint`（0 警告）、`npm run format:check`、`npm run build`、`npm test` 全部退出码 0，**256 项离线测试通过、0 失败、0 跳过**（Phase 1.6 254 项 + Model `null` 占位回归 2 项）；源码及构建后 CLI `--help` / `--version`（`easy-agent 0.1.0`）验证通过。
+- 现行规范：[README](../README.md)、[Phase 1 索引与总验收](phase-1.md)、[v0.1.0 Release Notes](releases/v0.1.0.md)、[路线图](roadmap.md)。

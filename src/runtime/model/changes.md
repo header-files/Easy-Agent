@@ -40,4 +40,5 @@
 - 变更后：这些 `null` 或空白类型视为该片段尚未提供对应字段。空字符串 arguments 仍计入参数片段；对象形式的 arguments、非数组 `tool_calls` 和结束时缺少有效工具字段仍拒绝。
 - 修改原因：通义兼容流在工具调用过程中用 `null` 表示“本段没有该字段”。真实 `qwen-max` 因此在进入 `add` 工具执行前被判为非法响应。
 - 影响范围：OpenAI-compatible 的流式组装和非流式消息映射、模型离线测试及现行说明；Harness Model 公共契约不变。
+- 验证（2026-11-24）：`node --test tests/model-runtime.test.ts` 25 项通过；全仓五项工程检查通过，`npm test` 256 项通过、0 失败、0 跳过（Phase 1.6 交付基线 254 项 + 本次新增 2 项）。
 - 现行说明：[README.md](README.md)、[Phase 1.1 流式协议](../../../docs/phase-1.1.md)。

@@ -66,7 +66,7 @@ test('编译后CLI入口可显示帮助/版本，导入时不执行且不需模�
     [bin.pathname, '--version'],
     { env: {} },
   );
-  assert.equal(version.stdout.trim(), 'easy-agent 0.0.0');
+  assert.equal(version.stdout.trim(), 'easy-agent 0.1.0');
   assert.equal(version.stderr, '');
   const imported = await execFileAsync(
     process.execPath,

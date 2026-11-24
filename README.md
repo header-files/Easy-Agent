@@ -2,9 +2,13 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Phase 1.1～1.6 已完成，本地 CLI 可运行。**
+**项目状态：Phase 1（Phase 1.1～1.6）MVP 已完成，里程碑版本 `v0.1.0`，本地 CLI 可运行。**
 
-已有 Model、Tool、DefaultAgentLoop、DefaultExecutionEngine 和 Agent Management 提供模型—串行工具—模型闭环、内存 Session、多轮上下文、FIFO、取消和独立事件/结果观察。已按 [Phase 1.6 唯一设计](docs/phase-1.6.md) 完成统一应用服务、配置与装配、本地 CLI 和端到端离线验收。2026-11-24 五项工程检查全部成功，254 项测试通过、0 失败、0 跳过，完整证据见 [本阶段验收](docs/phase-1.6.md#17-实际交付与验收记录)。未实现 HTTP Server、Session Event Log 或持久化恢复；真实 Provider/API 烟测未运行。Phase 1.5 的 216 项及更早历史验收继续保留。
+Easy Agent 已完成 Phase 0 工程基线、统一 Logging 以及 Phase 1.1～1.6（Model、Tool、DefaultAgentLoop、DefaultExecutionEngine、Agent Management、统一 Application Service、Composition / Bootstrap 与本地 CLI），形成完整的模型—串行工具—模型闭环、内存多轮 Session、同 Session FIFO、跨 Session 并发、协作式取消与独立事件/结果观察。详细发布说明见 [v0.1.0 Release Notes](docs/releases/v0.1.0.md)。
+
+2026-11-24 里程碑验收中，五项工程检查全部通过，**256 项离线测试通过、0 失败、0 跳过**（在 Phase 1.6 交付的 254 项基础上，含 2 项 Model Runtime `null` 占位兼容回归用例）；各子阶段的历史验收记录（76 / 109 / 146→151 / 187 / 216 / 254）保留于对应阶段文档，汇总见 [Phase 1 索引](docs/phase-1.md)。
+
+**当前尚未实现的能力（留待 Phase 2+）**：HTTP Server / REST / SSE、远程 CLI、Web UI、正式 npm SDK 发布、Session Event Log JSONL 读写与持久化/重放/恢复、Transaction Journal、Event Bus、持久化 Inbox、Steer / Follow-up、Approval / HITL、MCP / Skill / Memory / 上下文压缩 / Workspace / Sandbox、工具并行执行，以及日志轮转与分布式 Tracing。本地 `npm link` 安装与真实在线模型烟测均不属于自动化验收前置条件。
 
 ## 产品定位
 
@@ -385,18 +389,19 @@ easy-agent/
 - [技术栈、代码与文档规范](docs/conventions.md)
 - [Phase 0：已完成的工程基线与验收](docs/phase-0.md)
 - [Runtime Logging：统一日志基础设施](src/runtime/logging/README.md)
-- [Phase 1：阶段顺序索引](docs/phase-1.md)
+- [Phase 1：MVP 阶段索引与整体验收（v0.1.0）](docs/phase-1.md)
 - [Phase 1.1：已完成 Model System 与历史验收](docs/phase-1.1.md)
 - [Phase 1.2：已完成 Tool Runtime 与历史验收](docs/phase-1.2.md)
 - [Phase 1.3：已完成 Agent Loop 设计与历史验收](docs/phase-1.3.md)
 - [Phase 1.4：Execution Engine 设计与历史验收](docs/phase-1.4.md)
 - [Phase 1.5：已完成 Agent Management 与历史验收](docs/phase-1.5.md)
-- [Phase 1.6：当前唯一 Application Service / Composition / CLI 依据](docs/phase-1.6.md)
+- [Phase 1.6：已完成 Application Service / Composition / CLI 验收](docs/phase-1.6.md)
+- [v0.1.0 Release Notes](docs/releases/v0.1.0.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前阶段唯一依据为 `docs/phase-1.6.md`。** 完成 Phase 1.6 后停止，不自动开发 HTTP/Persistence；`docs/roadmap.md` 不是自动接续开发清单。
+**Phase 1（Phase 1.1～1.6）MVP `v0.1.0` 已收尾完成。** 后续 Phase 2（持久化、HTTP/SSE、SDK 等）需经明确授权后再启动，`docs/roadmap.md` 不作为自动接续开发清单。
 
 ## 文档维护原则
 
