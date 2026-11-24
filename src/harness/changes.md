@@ -67,3 +67,13 @@
 - 影响范围：Execution 公共类型、统一导出、契约测试和 Harness 父模块说明；不修改 Phase 1.1–1.3 公共协议，不新增持久化或后续阶段占位接口。
 - 依据/验证：独立严格类型检查通过，`node --test tests/execution-contracts.test.ts` 5 项通过，定向 ESLint 与格式检查通过；契约基础验证完成后向 Engine 实现阶段交接。
 - 现行说明：[Execution Contracts](contracts/execution/README.md)、[唯一阶段方案](../../docs/phase-1.4.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。
+
+### 2026-11-24 — 引入 Phase 1.5 Agent Management 契约
+
+- 主题 ID：`harness.agent-management-contracts`
+- 变更前：Harness 已有模型、工具、Loop 与 Engine 协议，没有 Session 管理、提交句柄和观察流接口。
+- 变更后：新增 `contracts/agent` 六组公共契约，表达 Session 创建/查询/删除、同步 submit 入队、独立事件观察与始终 resolve 的结果 Promise、配置覆盖和摘要。
+- 修改原因：用户授权将现有 Loop/Engine 组织为多轮 Session Agent，保证外部不消费事件也能执行，并保持同 Session FIFO 与跨 Session 并发。
+- 影响范围：Agent 公共接口、契约测试、新模块及 Harness 父文档；复用现有 AgentLoopContext、ExecutionEvent/Result 和 ModelParameters，不修改 Phase 1.1–1.4 公共接口。
+- 依据/验证：独立严格类型检查通过，`node --test tests/agent-management-contracts.test.ts` 6 项通过，定向 ESLint 与格式检查通过；基础契约验证完成后交接 Agent 实现阶段。
+- 现行说明：[Agent Contracts](contracts/agent/README.md)、[唯一阶段方案](../../docs/phase-1.5.md)；跨模块摘要见 [项目变更记录](../../docs/changes.md)。

@@ -2,9 +2,9 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Model、Tool、Agent Loop 与 Phase 1.4 Execution Engine 已完成。**
+**项目状态：Phase 1.1～1.5 的 Model、Tool、Loop、Engine 与 Agent Management 已完成。**
 
-已有 DefaultAgentLoop 提供模型—串行工具—模型闭环；本阶段在其通用契约上提供 DefaultExecutionEngine，统一驱动默认或自定义 Loop，管理内存生命周期、实时事件、结果、取消与快照。**Session 管理/调度、Session 日志读写与恢复、工具并行和 CLI/产品装配尚未实现。** 当前唯一阶段依据见 [Phase 1.4 Execution Engine](docs/phase-1.4.md)，既有 [Agent Loop 设计与历史验收](docs/phase-1.3.md) 保持独立。
+已有 DefaultAgentLoop 提供模型—串行工具—模型闭环，DefaultExecutionEngine 驱动默认或自定义 Loop 并管理内存生命周期。本阶段已增加内存 Session 管理、FIFO、多轮上下文、取消和独立事件/结果观察。**Session 日志读写与恢复、工具并行和 CLI/产品装配尚未实现。** 当前唯一阶段依据见 [Phase 1.5 Agent Management](docs/phase-1.5.md)，既有 [Loop](docs/phase-1.3.md) 和 [Engine](docs/phase-1.4.md) 的设计与历史验收分别保留。 2026-11-24 五项工程检查全部通过，216 项离线测试通过、0 失败、0 跳过；完整证据与限制见 [本阶段验收](docs/phase-1.5.md#13-实际交付与验收记录)。
 
 ## 产品定位
 
@@ -53,7 +53,7 @@ npm test
 | `npm run build`        | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
 | `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
-`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop/Execution 契约、DefaultAgentLoop 和 DefaultExecutionEngine。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理、Engine 生命周期/取消/快照及日志安全。该私有包尚未作为 Agent SDK 发布。
+`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop/Execution/Agent 契约、DefaultAgentLoop、DefaultExecutionEngine、DefaultAgentManager 和 SessionEventBufferOverflowError。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理、Engine 生命周期/取消/快照、Session FIFO/上下文/取消、观察流与独立结果及日志安全。该私有包尚未作为 Agent SDK 发布。
 
 安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。Provider 配置通过实例构造参数显式传入；不自动读取 `.env`，没有 CLI 对话命令。
 
@@ -221,7 +221,45 @@ execute 是惰性、单次消费的事件流，Execution ID 由调用方分配�
 
 终态快照有界保留，默认最多 1000 条，可通过 maxRetainedSnapshots 配置为 0；RUNNING 不会被淘汰。快照隔离 Engine 自有状态与可复制数据图，外部函数/闭包/有私有状态对象保留能力引用，其内部状态不承诺隔离。具体范围和选项见 [Execution Engine](src/execution/engine/README.md)。
 
-ExecutionEvent 只是内存实时通知。本阶段**不读取或写入 Session Event Log JSONL**，不实现事务日志、事件重放、恢复、Session 队列/调度或 SSE；完整规则以 [Phase 1.4](docs/phase-1.4.md) 为准。
+ExecutionEvent 只是内存实时通知。Engine 组件不负责 Session 队列或调度，也不读写 Session Event Log；其既有规则以 [Phase 1.4](docs/phase-1.4.md) 为准。当前 Agent Management 按下一节所述在上层消费 Engine。
+
+## Agent Management 使用
+
+沿用前面创建的 engine 和 loop，Manager 返回 SessionAgent；调用方无需直接构造 Session 实现：
+
+```javascript
+import { DefaultAgentManager } from './dist/index.js';
+
+const manager = new DefaultAgentManager(engine, loop, {
+  eventBufferCapacity: 512,
+});
+const session = manager.createSession({
+  config: {
+    model: { name: 'your-model-id' },
+    tools: { allowedNames: ['greet'] },
+  },
+});
+
+const first = session.submit('向 Easy Agent 问好');
+const second = session.submit('上一轮我们说了什么？', {
+  config: { model: { parameters: { temperature: 0.2 } } },
+});
+
+// 不消费 events，两项也会按提交顺序执行并结算。
+const [firstResult, secondResult] = await Promise.all([
+  first.result,
+  second.result,
+]);
+const context = session.getContext();
+```
+
+submit 同步入队，内部主动消费 Engine；同 Session FIFO、不同 Session 允许并发。任务实际开始时读取最新历史，仅成功且有完整 updatedContext 时替换已提交上下文。result 独立 resolve 标准 ExecutionResult；失败/取消不更新历史，排队取消不会调用 Engine 或伪造生命周期事件。
+
+也可独立遍历句柄的 events 观察 Engine 原始事件。该流仅支持一个消费者和一次遍历；提前退出只停止观察。未消费事件超过 eventBufferCapacity（默认 512，正安全整数）时，观察流抛出 SessionEventBufferOverflowError 并停止缓存，执行、结果与后续队列仍继续。正常结束且未溢出时，缓存事件仍可晚读。要取消执行，调用 session.cancel(executionId)。
+
+这一层观察流与直接消费 Engine 不同：直接退出 Engine 流会请求取消。Session 运行取消必须等协作收尾才放行下一项；不合作的依赖可能使任务持续活动，不设隐藏清理超时。Manager 只删除空闲 Session，删除后的旧 Session 引用拒绝 submit。
+
+自定义 Loop 可以不配置模型；仅覆盖 model.parameters 时须有可继承或显式提供的模型名。配置合并、上下文隔离与 opaque 能力引用限制、ID 工厂及统一日志边界见 [Agent 模块](src/agent/README.md)，公共接口见 [Agent Contracts](src/harness/contracts/agent/README.md)。当前不读写 Session Event Log JSONL，不实现持久化、恢复、持久化 Inbox、Runtime 广播或 Phase 1.6 装配/CLI；完整设计只在 [Phase 1.5](docs/phase-1.5.md) 维护。
 
 ## 当前目录
 
@@ -236,7 +274,7 @@ easy-agent/
 ├── src/
 │   ├── index.ts
 │   ├── application/               # 仅 README.md / changes.md
-│   ├── agent/                     # 仅 README.md / changes.md
+│   ├── agent/                     # Session 管理、FIFO、上下文与观察流
 │   ├── execution/
 │   │   ├── loops/                 # 已有 DefaultAgentLoop
 │   │   └── engine/                # DefaultExecutionEngine 与就近文档
@@ -244,7 +282,8 @@ easy-agent/
 │   │   ├── model/                 # 公共模型契约与就近文档
 │   │   ├── tool/                  # 公共工具契约与就近文档
 │   │   ├── agent-loop/            # 通用 AgentLoop 契约与就近文档
-│   │   └── execution/             # Execution 契约与就近文档
+│   │   ├── execution/             # Execution 契约与就近文档
+│   │   └── agent/                 # Agent Management 契约与就近文档
 │   ├── runtime/
 │   │   ├── logging/               # Logger 门面、Pino 适配与就近文档
 │   │   ├── model/                 # Chat Completions Adapter 与就近文档
@@ -280,12 +319,13 @@ easy-agent/
 - [Phase 1.1：已完成 Model System 与历史验收](docs/phase-1.1.md)
 - [Phase 1.2：已完成 Tool Runtime 与历史验收](docs/phase-1.2.md)
 - [Phase 1.3：已完成 Agent Loop 设计与历史验收](docs/phase-1.3.md)
-- [Phase 1.4：当前唯一 Execution Engine 依据](docs/phase-1.4.md)
+- [Phase 1.4：Execution Engine 设计与历史验收](docs/phase-1.4.md)
+- [Phase 1.5：当前唯一 Agent Management 依据](docs/phase-1.5.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前阶段唯一依据为 `docs/phase-1.4.md`。** 只完成 Phase 1.4，不自动进入 Phase 1.5；`docs/roadmap.md` 不是自动接续开发清单。
+**当前阶段唯一依据为 `docs/phase-1.5.md`。** 只完成 Phase 1.5，不自动进入 Phase 1.6；`docs/roadmap.md` 不是自动接续开发清单。
 
 ## 文档维护原则
 

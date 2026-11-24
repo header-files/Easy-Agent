@@ -7,6 +7,8 @@
 
 > **交付状态：2026-11-23 已完成 Phase 1.4 验收；五项工程检查全部通过，187 项测试通过、0 失败、0 跳过。** 本阶段成果与验证边界见 [实际验收记录](#103-实际验收记录)，不自动进入 Phase 1.5。
 
+> 本文件保留 Phase 1.4 的设计基线与 187 项历史验收；当前阶段依据见 [Phase 1.5 Agent Management](phase-1.5.md)。以下 Session 调度等非目标针对 Engine 职责及当时阶段。
+
 ## 1. 目标与范围
 
 Phase 1.4 在 Harness 中定义 Execution 的通用运行契约，在 Execution 模块中实现可复用的 `DefaultExecutionEngine`，统一驱动任意符合 Harness `AgentLoop` 契约的 Loop；负责生命周期状态、实时事件转发、最终结果、取消、错误隔离和运行快照。

@@ -14,3 +14,12 @@
 - 影响范围：Engine 子模块、Execution 父模块、Harness Execution 契约使用、离线验证和项目阶段说明。不实现 Session/队列、JSONL、Persistence、Transaction Journal、Event Bus、SSE 或 Phase 1.5。
 - 验证：Engine 主流程 8 项、独立控制/并发/背压 11 项、协议边界 5 项、数据图快照 4 项及真实 DefaultAgentLoop 离线链路 3 项共 31 项测试通过；完整工程真实结果见阶段验收记录。
 - 关联：[Harness Execution 时间线](../../harness/contracts/execution/changes.md)、[Execution 时间线](../changes.md)、[项目级记录](../../../docs/changes.md)。
+
+## 2026-11-24 — 原生 binary view 快照不执行自定义槽访问器
+
+- 主题 ID：`execution.engine`
+- 变更前：typed array、DataView 和 Buffer 快照直接读取实例的 buffer/offset/length 属性，可能触发调用方覆盖的 getter。
+- 变更后：通过内建原型 getter 读取原生内部槽，保留数据图复制和自定义属性的既有语义，不执行这些覆盖访问器。
+- 修改原因：Phase 1.5 的 Agent/Engine 整链路验证发现该细节与已确认的未知 accessor 隔离边界不符，需要同步最小内部修复。
+- 影响范围：Engine 的私有快照辅助函数和整链路回归；Phase 1.1–1.4 公共契约、执行状态及取消机制不变。
+- 验证：新增 Agent 与真实 Engine 的 typed array、DataView、Buffer 参数化回归；最终结果见 Phase 1.5 验收记录。

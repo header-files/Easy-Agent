@@ -31,6 +31,24 @@ const typedArrays = [
   BigUint64Array,
 ];
 
+const typedArrayPrototype = Object.getPrototypeOf(
+  Uint8Array.prototype,
+) as object;
+
+/** Read binary view slots without invoking shadowing user accessors. */
+function viewSlots(view: ArrayBufferView) {
+  const dataView = types.isDataView(view);
+  const prototype = dataView ? DataView.prototype : typedArrayPrototype;
+  const read = (name: string): unknown =>
+    Object.getOwnPropertyDescriptor(prototype, name)!.get!.call(view);
+  return {
+    buffer: read('buffer') as ArrayBufferLike,
+    byteOffset: read('byteOffset') as number,
+    byteLength: read('byteLength') as number,
+    length: dataView ? undefined : (read('length') as number),
+  };
+}
+
 function properties(
   source: object,
   target: object,
@@ -106,16 +124,17 @@ function copy(
   )
     result = bufferShell(source as ArrayBufferLike);
   else if (ArrayBuffer.isView(source)) {
-    const rawBuffer = source.buffer;
+    const slots = viewSlots(source);
+    const rawBuffer = slots.buffer;
     const freshBuffer = !seen.has(rawBuffer);
     const buffer = freshBuffer
       ? bufferShell(rawBuffer)
       : (seen.get(rawBuffer) as ArrayBufferLike);
     if (freshBuffer) seen.set(rawBuffer, buffer);
     if (Buffer.isBuffer(source))
-      result = Buffer.from(buffer, source.byteOffset, source.byteLength);
+      result = Buffer.from(buffer, slots.byteOffset, slots.byteLength);
     else if (prototype === DataView.prototype)
-      result = new DataView(buffer, source.byteOffset, source.byteLength);
+      result = new DataView(buffer, slots.byteOffset, slots.byteLength);
     else {
       const Constructor = typedArrays.find(
         (type) => prototype === type.prototype,
@@ -126,11 +145,7 @@ function copy(
         offset: number,
         length: number,
       ) => ArrayBufferView;
-      result = new View(
-        buffer,
-        source.byteOffset,
-        (source as Uint8Array).length,
-      );
+      result = new View(buffer, slots.byteOffset, slots.length!);
     }
     // Register both shells before following custom properties that can point back to the view.
     seen.set(value, result);

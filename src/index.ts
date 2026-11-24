@@ -29,3 +29,9 @@ export {
   DefaultExecutionEngine,
   type DefaultExecutionEngineOptions,
 } from './execution/engine/index.ts';
+export * from './harness/contracts/agent/index.ts';
+export {
+  DefaultAgentManager,
+  type DefaultAgentManagerOptions,
+  SessionEventBufferOverflowError,
+} from './agent/index.ts';

@@ -4,7 +4,7 @@
 >
 > 交付状态：**2026-11-21 已完成 Phase 1.1 实现与离线工程验收**。76 项测试通过、0 失败、0 跳过；未进行真实 Provider/API 调用验证，不自动接续 Phase 1.2。
 
-> 本文件保留 **Phase 1.1 的实现基线与 76 项历史验收**。Phase 1.2 Tool Runtime 已完成，当前阶段见 [Phase 1.4 Execution Engine](phase-1.4.md)；以下非目标针对 Model System 的职责和当时阶段，不表示独立 Tool Runtime 仍属未实现能力。Model 不执行工具，Tool Runtime 通过桥接复用其数据类型；完整循环由 Phase 1.3 的 DefaultAgentLoop 实现。
+> 本文件保留 **Phase 1.1 的实现基线与 76 项历史验收**。Phase 1.2 Tool Runtime 已完成，当前阶段见 [Phase 1.5 Agent Management](phase-1.5.md)；以下非目标针对 Model System 的职责和当时阶段，不表示独立 Tool Runtime 仍属未实现能力。Model 不执行工具，Tool Runtime 通过桥接复用其数据类型；完整循环由 Phase 1.3 的 DefaultAgentLoop 实现。
 
 ## 1. 目标与职责
 

@@ -193,3 +193,16 @@
 - 影响范围：新增 Harness Execution / Execution Engine 及其离线验证；同步项目入口、现行规范、阶段索引和模块说明。Phase 1.3 的设计与历史验收统一位于 [phase-1.3.md](phase-1.3.md)，既有 146 项阶段验收和后续 Model 修复 147/151 项验证均保留。
 - 模块记录：[Harness Execution](../src/harness/contracts/execution/changes.md)、[Harness](../src/harness/changes.md)、[Execution Engine](../src/execution/engine/changes.md)、[Execution](../src/execution/changes.md)。实际验收见 [Phase 1.4](phase-1.4.md#103-实际验收记录)。
 - 实际验收：2026-11-23，typecheck、lint、全仓格式检查、build 和 test 全部通过；187 项通过、0 失败、0 跳过（既有 151 项 + Execution 契约 5 项 + Engine 31 项）。包括无 return 钩子/继续 yield 时的真正 EOF、可移除 cancelWaiter、512 事件背压、取消与有界快照、opaque 能力引用及既有 DefaultAgentLoop 离线集成；Phase 1.1–1.3 生产源码和公共契约差异检查为空。原 146/147/151 项历史验证保留，完整命令及边界由阶段验收维护。
+
+### 2026-11-24 — 进入 Phase 1.5 并解耦 Session 执行与事件观察
+
+- 主题 ID：`agent.management-baseline`
+- 变更前：Model、Tool、Loop 与 Engine 已完成，187 项历史验收保留；尚无进程内 Session 管理或多轮 FIFO 协调。
+- 变更后：用户授权以 [Phase 1.5](phase-1.5.md) 为唯一依据，严格按 A 契约 → B Manager → C 上下文/配置 → D 调度/取消/观察 → E 验收推进。当前实施 Harness Agent 管理契约与默认 Agent 实现，复用既有 Engine/Loop，不修改 Phase 1.1–1.4 公共协议或默认策略。
+- 跨模块边界：submit 同步登记每 Session FIFO，Agent 内部唯一主动消费惰性 Engine 流；同 Session 串行、不同 Session 可并发。任务实际启动时读取最新上下文，仅 COMPLETED 且 updatedContext 存在时整体提交；先确认 Engine 收尾、提交上下文，再结算 result，之后放行下一项。
+- 观察与取消：SessionExecution.events 是有界单消费者观察流，提前退出或溢出不取消/阻塞 Execution，result 独立结算；溢出明确使观察流失败。排队取消不启动 Engine、不伪造事件；运行取消使用独立 signal 并等待协作收尾，不将队列状态添加到 Engine ExecutionStatus。
+- 范围与取舍：仅实现内存 Session/上下文及必要 FIFO，不接入 Session Event Log JSONL、Transaction Journal、Write Coordinator、恢复、持久化 Inbox、Runtime Event/SSE、Steer/Follow-up、审批或 Phase 1.6 装配/CLI。未来持久化职责仍归 Runtime/Persistence。
+- 影响范围：阶段入口、架构/工程规范、阶段索引和路线图；Application/Composition 仅修正阶段提示，Execution 父文档说明原始消费与 Agent 观察的区别，没有新增底层能力或虚构模块日志。1.3/1.4 技术设计及 146/147/151/187 项历史验证保留。
+- 模块记录：[Agent Contracts](../src/harness/contracts/agent/changes.md)、[Harness](../src/harness/changes.md)、[Agent](../src/agent/changes.md)。本阶段实际验收见 [Phase 1.5](phase-1.5.md#13-实际交付与验收记录)，187 项仍保留为此前基线。
+- 内部兼容修复：真实 Agent/Engine 整链路的 typed array、DataView、Buffer 回归发现，实例覆盖的原生槽属性 getter 可能被快照读取触发；Agent 与 Engine 私有 helper 改用内建原型 getter，四个 shadow getter 保持 0 调用，不改变旧公共契约。记录见 [Engine 2026-11-24 时间线](../src/execution/engine/changes.md) 与 [Agent 时间线](../src/agent/changes.md)。
+- 实际验收：2026-11-24，`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 均退出码 0；216 项通过、0 失败、0 跳过（既有 187 项 + 新增 29 项：契约 6、Manager 4、真实 Engine 集成 5、错误流边界 4、取消/观察流 9、原生 view 快照 1）。旧 Phase 1.1–1.4 公共契约差异检查为空；保留 146/147/151/187 历史记录，完成后未进入 Phase 1.6。

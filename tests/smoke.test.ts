@@ -17,6 +17,8 @@ test('TypeScript 源码入口能够作为 ESM 加载', async () => {
   assert.equal(typeof entry.DefaultToolExecutor, 'function');
   assert.equal(typeof entry.DefaultAgentLoop, 'function');
   assert.equal(typeof entry.DefaultExecutionEngine, 'function');
+  assert.equal(typeof entry.DefaultAgentManager, 'function');
+  assert.equal(typeof entry.SessionEventBufferOverflowError, 'function');
 });
 
 test('构建入口能够由 Node.js 直接作为 JavaScript ESM 加载', async () => {
@@ -29,12 +31,13 @@ test('构建入口能够由 Node.js 直接作为 JavaScript ESM 加载', async (
      process.stdout.write([entry[Symbol.toStringTag], typeof entry.createLogger, typeof entry.ModelError,
        typeof entry.OpenAICompatibleModelClient, typeof entry.ToolExecutionError,
        typeof entry.DefaultToolRegistry, typeof entry.DefaultToolExecutor,
-       typeof entry.DefaultAgentLoop, typeof entry.DefaultExecutionEngine].join(':'));`,
+       typeof entry.DefaultAgentLoop, typeof entry.DefaultExecutionEngine,
+       typeof entry.DefaultAgentManager, typeof entry.SessionEventBufferOverflowError].join(':'));`,
   ]);
 
   assert.equal(
     stdout,
-    'Module:function:function:function:function:function:function:function:function',
+    'Module:function:function:function:function:function:function:function:function:function:function',
   );
   assert.equal(stderr, '');
 });
