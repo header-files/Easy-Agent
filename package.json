@@ -2,8 +2,11 @@
   "name": "easy-agent",
   "version": "0.0.0",
   "private": true,
-  "description": "Easy Agent 的 Model System、Tool Runtime、Agent Loop、Execution Engine 与 Agent Management",
+  "description": "Easy Agent 本地 CLI、统一应用服务与可替换组件装配",
   "type": "module",
+  "bin": {
+    "easy-agent": "dist/application/cli/bin.js"
+  },
   "engines": {
     "node": ">=26.0.0 <27"
   },
@@ -12,6 +15,7 @@
     "url": "git+ssh://git@github.com/header-files/Easy-Agent.git"
   },
   "scripts": {
+    "chat": "node src/application/cli/bin.ts chat",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier . --write",

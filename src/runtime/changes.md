@@ -69,3 +69,13 @@ Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追
 - 影响范围：`src/runtime/model` 的流式组装与离线测试；公共 Model 契约未改。
 - 依据/验证：细节见 [Model 时间线](model/changes.md)。
 - 现行说明：[Model README](model/README.md)。
+
+### 2026-11-24 — 接受工具调用中的 null 占位字段
+
+- 主题 ID：`runtime.model-system`
+- 变更前：OpenAI-compatible 适配器把 `tool_calls: null`、空 `type` 和 `arguments: null` 判为非法响应。
+- 变更后：这些值表示该片段尚未提供字段；有效工具调用仍必须在结束时具备 id、name 和 arguments 字符串。
+- 修改原因：真实 `qwen-max` 的工具流使用 `null` 占位，Phase 1.6 的 `add` 调用因此在模型解析阶段失败。
+- 影响范围：`src/runtime/model` 的响应映射与离线测试；公共 Model 契约未改。
+- 依据/验证：细节见 [Model 时间线](model/changes.md)。
+- 现行说明：[Model README](model/README.md)。

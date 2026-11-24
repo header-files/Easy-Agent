@@ -300,6 +300,24 @@ test('Provider实际模型、响应ID、结束原因和部分usage映射', async
   }
 });
 
+test('非流式直接回答中的 null 工具列表表示没有工具调用', async () => {
+  const result = await client({
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: '200000',
+          tool_calls: null,
+          function_call: null,
+        },
+        finish_reason: 'stop',
+      },
+    ],
+  }).generate(request);
+  assert.equal(result.message.content, '200000');
+  assert.equal(result.message.toolCalls, undefined);
+});
+
 test('非流式工具调用保留不合法JSON原文', async () => {
   const result = await client({
     choices: [
@@ -358,6 +376,18 @@ test('无效响应、缺少工具字段和不一致的工具结束原因均失�
             ],
           },
           finish_reason: 'tool_calls',
+        },
+      ],
+    },
+    {
+      choices: [
+        {
+          message: {
+            role: 'assistant',
+            content: 'x',
+            tool_calls: {},
+          },
+          finish_reason: 'stop',
         },
       ],
     },
@@ -508,6 +538,69 @@ test('流式工具片段的空白 id 和 name 不覆盖已确定值', async () =
       argumentsJson: '{"city":"北京"}',
     },
   ]);
+});
+
+test('工具片段的 null 参数和结束块的 null 工具列表仍能组装完整调用', async () => {
+  const events = await collect(
+    streamClient([
+      chunk({
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call-add',
+            type: 'function',
+            function: { name: 'add', arguments: null },
+          },
+        ],
+      }),
+      chunk({
+        role: null,
+        content: null,
+        tool_calls: [
+          {
+            index: 0,
+            id: '',
+            type: '',
+            function: { name: null, arguments: '{"a":100000,"b":100000}' },
+          },
+        ],
+      }),
+      chunk(
+        { content: null, tool_calls: null, function_call: null },
+        'tool_calls',
+      ),
+      {
+        choices: [],
+        usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18 },
+      },
+      '[DONE]',
+    ]).stream(request),
+  );
+  const deltas = events.filter((event) => event.type === 'tool_call_delta');
+  assert.equal(deltas.length, 2);
+  assert.equal(deltas[0]?.type === 'tool_call_delta' && deltas[0].name, 'add');
+  assert.equal(
+    deltas[1]?.type === 'tool_call_delta' && deltas[1].argumentsDelta,
+    '{"a":100000,"b":100000}',
+  );
+  const last = events.at(-1);
+  assert.equal(last?.type, 'message_end');
+  if (last?.type !== 'message_end') throw new Error('missing end');
+  assert.equal(last.response.message.content, null);
+  assert.deepEqual(last.response.message.toolCalls, [
+    {
+      id: 'call-add',
+      name: 'add',
+      argumentsJson: '{"a":100000,"b":100000}',
+    },
+  ]);
+  assert.deepEqual(last.response.usage, {
+    inputTokens: 10,
+    outputTokens: 8,
+    totalTokens: 18,
+  });
 });
 
 const toolFieldPlaceholders = [
@@ -673,6 +766,20 @@ test('占位片段不会重置工具标识的一致性校验，非空 id 或 nam
 
 test('流式拒绝缺失必需工具字段、重复工具ID、未知数据和结束后的增量', async () => {
   const badFrames: unknown[][] = [
+    [chunk({ tool_calls: { index: 0 } }), '[DONE]'],
+    [
+      chunk({
+        tool_calls: [
+          {
+            index: 0,
+            id: 'id',
+            function: { name: 'x', arguments: { a: 1 } },
+          },
+        ],
+      }),
+      chunk({}, 'tool_calls'),
+      '[DONE]',
+    ],
     [
       chunk({
         tool_calls: [{ index: 0, function: { name: 'x', arguments: '{}' } }],

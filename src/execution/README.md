@@ -19,7 +19,7 @@
 
 ## 当前实现状态
 
-**Phase 1.3 DefaultAgentLoop 与 Phase 1.4 DefaultExecutionEngine 已完成**；当前 Phase 1.5 在 Agent 层复用这些能力。
+**Phase 1.3 DefaultAgentLoop 与 Phase 1.4 DefaultExecutionEngine 已完成**；Phase 1.5 Agent 已复用这些能力，当前 Phase 1.6 在 Composition 中统一装配。
 
 - [`engine/index.ts`](engine/index.ts) 提供统一 Engine，负责惰性执行、状态/结果、取消、Loop 协议校验和有界内存快照，详见 [Engine README](engine/README.md)。
 - DefaultAgentLoop 入口为 [`loops/index.ts`](loops/index.ts)。它实现 Harness AgentLoop，注入既有 ModelClient、ToolRegistry 和 ToolExecutor，通过流式事件完成模型—串行工具—模型闭环，并返回完整上下文快照。具体配置、重试、取消与资源行为见 [Loop README](loops/README.md)。
@@ -28,7 +28,7 @@ Engine 可驱动任意满足 Harness 契约的第三方 Loop，不要求复用�
 
 ## 后续实现范围
 
-当前 Phase 1.5：Agent Management；后续 Phase 1.6：Composition + CLI。审批、Recovery、持久化和完整执行实体状态机按后续授权开发。当前不提供 BasicLoop 旧别名或工具并行。
+当前 Phase 1.6：Application Service / Composition / CLI，保持 Loop/Engine 公共契约与默认策略。审批、Recovery、持久化和完整执行实体状态机按后续授权开发。当前不提供 BasicLoop 旧别名或工具并行。
 
 ## 协作与边界
 
@@ -39,7 +39,7 @@ SessionAgent 作为 Engine 原始流的内部唯一消费者，外部 events 仅
 ## Coding Agent 开发须知
 
 1. 开发前先阅读仓库根目录 `AGENTS.md`、[`docs/AGENT.md`](../../docs/AGENT.md)、本文件及本目录 [`changes.md`](changes.md)，并按需查阅相邻模块说明。
-2. 仅在用户授权的阶段实现功能。本模块保持已完成 Loop/Engine 基线；Phase 1.5 的 Session 调度归 Agent，不把持久化或完整执行状态机加入本模块。
+2. 仅在用户授权的阶段实现功能。本模块保持已完成 Loop/Engine 基线；Session 调度归 Agent，Phase 1.6 的应用交互/装配归 Application/Composition，不把持久化或完整执行状态机加入本模块。
 3. 功能落地时，更新本文件的真实实现状态、入口/关键文件、使用及测试方式；不猜测未来接口签名。
 4. 本模块发生实质性设计或实现变化时，先更新本文件，再追加本目录 `changes.md`；跨模块/全局变化同时更新受影响模块及 [`docs/changes.md`](../../docs/changes.md)（如涉及全局决策）。
 
@@ -47,7 +47,7 @@ SessionAgent 作为 Engine 原始流的内部唯一消费者，外部 events 仅
 
 - [全局架构](../../docs/architecture.md)
 - [工程与文档规范](../../docs/conventions.md)
-- [当前 Agent Management 阶段](../../docs/phase-1.5.md)
+- [当前应用装配与 CLI 阶段](../../docs/phase-1.6.md)
 - [既有 Engine 设计与验收](../../docs/phase-1.4.md)
 - [本模块变更时间线](changes.md)
 

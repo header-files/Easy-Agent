@@ -206,3 +206,27 @@
 - 模块记录：[Agent Contracts](../src/harness/contracts/agent/changes.md)、[Harness](../src/harness/changes.md)、[Agent](../src/agent/changes.md)。本阶段实际验收见 [Phase 1.5](phase-1.5.md#13-实际交付与验收记录)，187 项仍保留为此前基线。
 - 内部兼容修复：真实 Agent/Engine 整链路的 typed array、DataView、Buffer 回归发现，实例覆盖的原生槽属性 getter 可能被快照读取触发；Agent 与 Engine 私有 helper 改用内建原型 getter，四个 shadow getter 保持 0 调用，不改变旧公共契约。记录见 [Engine 2026-11-24 时间线](../src/execution/engine/changes.md) 与 [Agent 时间线](../src/agent/changes.md)。
 - 实际验收：2026-11-24，`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 均退出码 0；216 项通过、0 失败、0 跳过（既有 187 项 + 新增 29 项：契约 6、Manager 4、真实 Engine 集成 5、错误流边界 4、取消/观察流 9、原生 view 快照 1）。旧 Phase 1.1–1.4 公共契约差异检查为空；保留 146/147/151/187 历史记录，完成后未进入 Phase 1.6。
+
+### 2026-11-24 — 进入 Phase 1.6 并统一应用交互与装配边界
+
+- 主题 ID：`application.composition-cli-baseline`
+- 变更前：Model、Tool、Loop、Engine 与内存 Agent Management 已完成，216 项历史验收保留；调用方分别构造依赖，尚无共享应用操作门面、默认 Bootstrap 或本地 CLI。
+- 变更后：用户授权以 [Phase 1.6](phase-1.6.md) 为唯一阶段依据，按 A 应用服务 → B 配置/装配 → C CLI → D 端到端 → E 验收实施。Application Service 统一委托 Agent 公共能力；Composition 集中配置解析、依赖选择及资源生命周期；CLI 本地通过 Service 交互，未来 HTTP 可复用同一应用实例，不强制 CLI 经 HTTP。
+- 修改原因：将已有可替换组件组合成可运行产品，同时避免终端/未来 HTTP 各自复制 Session 调度、上下文、Loop 或工具执行。
+- 跨模块决定：配置优先级为 CLI 显式选项 > 环境变量 > 显式配置文件 > 默认值，配置在初始化边界集中解析；Provider 连接信息不进入 Loop 普通上下文。复用 Phase 1.1～1.5 公共契约、串行工具策略与独立 events/result，不增加总调用上限、第二套 FIFO 或事件缓存。
+- 生命周期边界：Bootstrap 先取消并等待既有任务协作收尾，再按依赖逆序释放自有资源；初始化中途失败回滚。外部注入共享组件的资源归调用方，dispose 幂等，不把观察结束或取消已受理冒充执行结束。
+- 范围限制：本阶段不实现 HTTP Server、Session Event Log、事务、持久化 Inbox、恢复、远程 CLI、正式 SDK、复杂 DI/插件管理或工具并行。旧阶段技术设计与 146/147/151/187/216 项历史验收保留；阶段启动指令中误写的 `phase-1.6-composition-cli.md` 按用户指定统一为 `phase-1.6.md`。
+- 影响与模块记录：[Application](../src/application/changes.md)、[CLI](../src/application/cli/changes.md)、[Composition](../src/composition/changes.md)；同步项目入口、架构/工程规范、阶段索引及路线图。Harness/Agent/Execution/Runtime 父说明只同步当前装配关系，没有为未改变的实现追加虚构历史。
+- 实际验收：2026-11-24，`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 全部退出码 0。254 项通过、0 失败、0 跳过（既有 216 项 + 新增 38：Service 7、配置 3、Bootstrap 6、CLI 12、端到端 9、编译后 CLI smoke 1）。`npm run chat -- --help` 与构建 bin 的帮助/版本/无副作用导入也已通过；未执行 npm link 或真实 Provider/API 烟测。完整 AC-01～18 证据见 [阶段验收](phase-1.6.md#17-实际交付与验收记录)。
+- 兼容与停止点：旧 Harness/Agent/Execution/Runtime 下所有 TypeScript 公共契约与既有实现差异为空，没有重大接口冲突。CLI 按 §6.5 单轮等待，排队的 /exit 在该轮收尾后处理，Ctrl+C 即时请求取消；统一日志配置新增 logging.level，安全启动错误用固定分类和阶段追溯。Phase 1.6 完成后停止，未进入 HTTP/Persistence。
+- 现行依据：[Phase 1.6](phase-1.6.md)、[架构](architecture.md)、[工程规范](conventions.md)。
+
+### 2026-11-24 — 工具调用中的 null 占位视为尚未提供
+
+- 主题 ID：`runtime.model-system`
+- 变更前：兼容适配器遇到 `tool_calls: null`、空白 `type`、`function: null` 或 `arguments: null` 即返回 `invalid_response`。
+- 变更后：这些值只表示当前片段没有对应字段。结束时缺少有效 id、name 或 arguments 字符串，以及非数组工具列表和对象形式参数，仍然拒绝。
+- 修改原因：通义兼容流用 `null` 占位，真实 `qwen-max` 在调用 Phase 1.6 的 `add` 工具前解析失败。
+- 影响范围：Runtime Model 的流式与非流式映射；Harness 公共契约和 Loop 策略不变。
+- 模块记录：[Runtime Model](../src/runtime/model/changes.md)、[Runtime](../src/runtime/changes.md)。
+- 现行规范：[Runtime Model](../src/runtime/model/README.md)、[Phase 1.1](phase-1.1.md)。

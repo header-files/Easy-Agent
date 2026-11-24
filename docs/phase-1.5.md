@@ -6,6 +6,8 @@
 > 前置依赖：Phase 1.1 Model System、1.2 Tool Runtime、1.3 Agent Loop、1.4 Execution Engine（均已由项目方完成开发）  
 > 文档定位：**当前 Phase 1.5 唯一有效的设计与开发任务依据**。既有 Phase 1.1～1.4 已实现的 Harness 公共契约与现行模块文档仍然有效；本任务书不能静默覆盖它们。
 
+> 本文保留 Phase 1.5 已完成的设计与 216 项历史验收。当前阶段转为 [Phase 1.6 Application Service / Composition / CLI](phase-1.6.md)，不覆盖以下当时的交付边界。
+
 ## 1. 产品目标与本阶段交付
 
 Easy Agent 是一个**开箱即用、灵活可扩展的通用 Agent**，坚持 **Easy to Use / Easy to Extend**。本阶段将已实现的 Loop 与 Engine 组织为可用于多轮交互的 Session Agent，不引入与当前闭环无关的系统。

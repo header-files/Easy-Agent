@@ -1,30 +1,30 @@
 # Easy Agent 技术栈、工程与文档规范
 
-> 当前阶段：**Phase 1.5（Agent Management）**。Phase 0 与统一 Logging 基线继续适用；Phase 1.1–1.4 的 Model/Tool/Loop/Engine 基线继续适用，当前唯一阶段依据见 [Agent Management 技术方案](phase-1.5.md)，不自动进入后续阶段。
+> 当前阶段：**Phase 1.6（Application Service / Composition / CLI）**。Phase 0 与统一 Logging 基线继续适用；Phase 1.1～1.5 的 Model/Tool/Loop/Engine/Agent 基线继续适用，当前唯一阶段依据见 [Phase 1.6 技术方案](phase-1.6.md)，不自动进入后续阶段。
 
 ## 1. 技术基线
 
-| 项目         | 约定                                                                                       |
-| ------------ | ------------------------------------------------------------------------------------------ |
-| 主要语言     | TypeScript                                                                                 |
-| 运行环境     | Node.js 26.x LTS；`engines.node` 为 `>=26.0.0 <27`，`.nvmrc` 为 `26`                       |
-| 模块系统     | ESM，不混用 CommonJS                                                                       |
-| 包管理       | npm 单包；保留 `package-lock.json`，使用 `npm ci` 复现依赖；`private: true`                |
-| TypeScript   | 6.0.3；`strict: true`、NodeNext、ES2024，统一配置编译和类型检查                            |
-| 工程质量     | ESLint 10.15.0、`@eslint/js` 10.0.1、typescript-eslint 8.73.0、Prettier 3.10.1             |
-| Node.js 类型 | `@types/node` 26.6.6，与运行环境主版本一致                                                 |
-| 构建         | `npm run build`，仅将 `src/` 编译到 `dist/`，输出原生 ESM JavaScript                       |
-| 检查         | `npm run typecheck`、`npm run lint`、`npm run format:check`                                |
-| 格式修复     | `npm run format`；检查代码、工程配置和 Markdown 文档                                       |
-| 测试         | `npm test`；`pretest` 自动构建，Node.js 内置 `node:test` 执行 `tests/*.test.ts`            |
-| 交互入口     | CLI、Agent SDK、HTTP API、Web UI 等为未来规划；当前提供模型、工具、Loop 与 Engine 组件入口 |
-| 模型         | Phase 1.1 实现 ModelClient 与 OpenAI-compatible Chat Completions Adapter                   |
-| 工具         | Phase 1.2 ToolRegistry/ToolExecutor，Ajv 8 的 draft-07 严格输入校验                        |
-| Loop         | Harness 通用 AgentLoop 契约；Execution DefaultAgentLoop 的 AsyncIterable 流式策略          |
-| Engine       | Harness Execution 契约；DefaultExecutionEngine 的内存生命周期、事件、控制与快照            |
-| Agent        | Phase 1.5 已提供 Session 管理、FIFO、上下文与独立观察流，不接入持久化                      |
-| 日志         | Runtime Logging 统一门面，Pino 10.4.0 输出结构化 JSON 到 stderr                            |
-| 数据存储     | 当前无业务持久化；未来依需求采用简单本地方案起步                                           |
+| 项目         | 约定                                                                              |
+| ------------ | --------------------------------------------------------------------------------- |
+| 主要语言     | TypeScript                                                                        |
+| 运行环境     | Node.js 26.x LTS；`engines.node` 为 `>=26.0.0 <27`，`.nvmrc` 为 `26`              |
+| 模块系统     | ESM，不混用 CommonJS                                                              |
+| 包管理       | npm 单包；保留 `package-lock.json`，使用 `npm ci` 复现依赖；`private: true`       |
+| TypeScript   | 6.0.3；`strict: true`、NodeNext、ES2024，统一配置编译和类型检查                   |
+| 工程质量     | ESLint 10.15.0、`@eslint/js` 10.0.1、typescript-eslint 8.73.0、Prettier 3.10.1    |
+| Node.js 类型 | `@types/node` 26.6.6，与运行环境主版本一致                                        |
+| 构建         | `npm run build`，仅将 `src/` 编译到 `dist/`，输出原生 ESM JavaScript              |
+| 检查         | `npm run typecheck`、`npm run lint`、`npm run format:check`                       |
+| 格式修复     | `npm run format`；检查代码、工程配置和 Markdown 文档                              |
+| 测试         | `npm test`；`pretest` 自动构建，Node.js 内置 `node:test` 执行 `tests/*.test.ts`   |
+| 交互入口     | 本阶段实现本地 CLI 与共享 Application Service；HTTP、正式 SDK、Web UI 仍属未来    |
+| 模型         | Phase 1.1 实现 ModelClient 与 OpenAI-compatible Chat Completions Adapter          |
+| 工具         | Phase 1.2 ToolRegistry/ToolExecutor，Ajv 8 的 draft-07 严格输入校验               |
+| Loop         | Harness 通用 AgentLoop 契约；Execution DefaultAgentLoop 的 AsyncIterable 流式策略 |
+| Engine       | Harness Execution 契约；DefaultExecutionEngine 的内存生命周期、事件、控制与快照   |
+| Agent        | Phase 1.5 已提供 Session 管理、FIFO、上下文与独立观察流，不接入持久化             |
+| 日志         | Runtime Logging 统一门面，Pino 10.4.0 输出结构化 JSON 到 stderr                   |
+| 数据存储     | 当前无业务持久化；未来依需求采用简单本地方案起步                                  |
 
 本阶段不要为了未来扩展引入数据库、Redis、消息队列、分布式调度、复杂 DI 容器、微服务或 Monorepo。
 
@@ -42,8 +42,8 @@
 
 1. **职责优先**：Application、Agent、Execution、Runtime 为核心运行职责层；Harness 横向支撑，Composition 装配。
 2. **按一级职责模块落地文档骨架**：Phase 0 建立六个一级模块目录，各有有意义的 `README.md` 和 `changes.md`。业务代码仍按实际功能逐步落地，未实现的子能力不建空源码。
-3. **避免无用抽象**：ModelClient 与 ToolExecutor/Registry 由当前 Runtime 实现并通过离线测试验证；Engine 通过通用 AgentLoop 契约驱动策略，当前 Agent 只增加已授权的内存 Session 管理，不创建万能 Runtime、伪 DI 容器或基础类层级。
-4. **尽量少的入口文件**：`src/index.ts` 导出 Logger 门面、公共模型/工具/Loop/Execution/Agent 契约和已实现组件；保留模块边界，不把模型组件调用等同于可运行 Agent。
+3. **避免无用抽象**：ModelClient 与 ToolExecutor/Registry 由当前 Runtime 实现并通过离线测试验证；Engine 通过通用 AgentLoop 契约驱动策略，当前 Agent 保持内存 Session 管理，Application/Composition 只增加应用交互及装配，不创建万能 Runtime、伪 DI 容器或基础类层级。
+4. **尽量少的入口文件**：`src/index.ts` 导出 Logger 门面、公共模型/工具/Loop/Execution/Agent 契约和已实现组件；保留模块边界，由 Bootstrap 装配可运行应用，不在 CLI 复制组件初始化。
 5. **避免机械 barrel 导出**：不是每个目录都必须有 `index.ts`。
 6. **保持内部边界清晰**：Harness 定义模型/工具/Loop/Execution/Agent 公共契约，Runtime 实现模型/工具，Execution 实现默认 Loop 与 Engine，Agent 实现 Session 协调；公共契约不暴露具体 Provider SDK 类型。
 7. **不提前规定内部状态机/持久化协议**：以对应功能阶段的代码和测试为依据。
@@ -53,12 +53,13 @@
 - 使用 `.gitignore` 排除 `node_modules/`、构建产物、开发临时文件、`.env` 和其他密钥文件。
 - 不将 API Key、Token、个人敏感信息写入源码、日志、异常消息、测试快照或示例配置。
 - Phase 1.1 通过构造参数显式传入 Provider 配置，不自动读取 `.env` 或环境变量；调用方在初始化边界提供 API Key 与 baseURL。
-- Logging 在 createLogger 初始化边界解析 LOG_LEVEL；后续若引入业务配置加载模块，应统一读取、解析和验证环境变量，核心 Loop 不直接读取 `process.env`。
+- Composition 集中解析外部配置，优先级为 CLI 显式选项 > 环境变量 > 配置文件 > 默认值；文件仅显式指定，不自动读取 `.env`。最终有效配置传入 Bootstrap，核心 Loop、SessionAgent 不直接读取 `process.env`。
+- Logger 独立使用时保留 createLogger 的 LOG_LEVEL 规则；应用装配统一解析日志级别后显式传给 Logger，避免各组件重新读取进程环境。配置解析和错误不得输出原始配置、密钥、认证头或带凭据 URL。
 - 生成的构建产物、自动化缓存及临时文件不纳入版本控制（除非仓库明确另有要求）。
 
 ### 3.1 统一日志规范
 
-- 项目运行日志统一使用 `src/runtime/logging` 的 Logger 门面。调用方不直接依赖 Pino，也不散落 `console.log` / `console.error`；未来 CLI 的正常输出由 Application 单独负责。
+- 项目运行日志统一使用 `src/runtime/logging` 的 Logger 门面。调用方不直接依赖 Pino，也不散落 `console.log` / `console.error`；CLI 的正常输出由 Application 单独负责。
 - 默认输出结构化 JSON 到 stderr，使用 `debug`、`info`、`warn`、`error` 表达严重程度；通过显式配置或初始化边界的 `LOG_LEVEL` 控制过滤。配置优先级为显式 level → LOG_LEVEL → info，环境值忽略大小写并去除首尾空白；空值或未知值安全报错。完整规则见 [Runtime Logging](../src/runtime/logging/README.md)。
 - 消息文本描述发生了什么，动态数据放入结构化 fields，模块归属通过 module/child logger 表达。避免将大对象、完整请求或原始业务载荷拼进文本。
 - 错误放在结构化字段中，由日志实现归一并处理；不把原始 Provider 正文、认证头、环境配置或完整错误载荷作为安全日志。
@@ -108,7 +109,17 @@
 - SessionExecution.events 单消费者、单次遍历且缓存有界。观察者退出只关闭观察流；溢出明确抛可识别错误并停止缓存，均不阻塞/取消 Engine，不妨碍 result 和后续队列。
 - result 独立且只结算一次，始终 resolve 标准 ExecutionResult；先确认底层迭代收尾、提交上下文，再 resolve，之后放行下一项。异常、缺少/重复终态均安全归一失败，不伪造 Engine 事件。
 - 排队取消不调用 Engine；运行取消通过独立 signal 覆盖惰性启动竞态，等待协作收尾。活跃/排队时不能删除 Session；删除后的旧引用不能继续提交。
-- Phase 1.5 仍不读写 Session Event Log、事务日志或恢复数据，不实现 Runtime 广播、持久化 Inbox、CLI 或 Phase 1.6；实际能力、默认实现选项和验证由 [Agent 模块](../src/agent/README.md) 与 [唯一阶段设计](phase-1.5.md) 维护。
+- Agent 模块仍不读写 Session Event Log、事务日志或恢复数据，不实现 Runtime 广播、持久化 Inbox 或 CLI；本阶段由统一应用服务委托其能力，实际 Agent 语义由 [Agent 模块](../src/agent/README.md) 与 [Phase 1.5](phase-1.5.md) 维护。
+
+### 3.6 Application Service、Bootstrap 与 CLI 规范
+
+- AgentApplicationService 只依赖既有 AgentManager / SessionAgent 公共能力，统一应用级验证与稳定错误；不保存第二份 Session 上下文、队列或事件缓存，不绑定终端/HTTP。
+- Bootstrap 接收有效配置，统一创建、复用和连接默认组件，允许简单注入 ModelClient 或自定义 Loop；不增加大型 DI、反射容器或平行契约。
+- 所有权必须明确。退出先拒绝新提交、请求取消并等待已提交任务收尾，再按逆序释放自有资源；外部注入共享组件不擅自释放。dispose 幂等，初始化失败需要回滚已拥有资源。
+- CLI 本地模式从 Bootstrap 取得 Service，终端适配器不直接创建或调用 ModelClient、ToolExecutor、DefaultAgentLoop 或 Engine，也不复制 FIFO。
+- 用户正文依据 output_delta 展示，不重复渲染 model_event.text_delta；最终 ExecutionResult 是权威结果。观察流关闭/溢出不自动取消 Execution，仍须独立处理 result。
+- Ctrl+C 通过 Service 显式发起取消，不能把退出观察等同于取消。/new 创建新 Session，原 Session 保留内存；/exit 等待必要收尾，不能伪装强制终止或回滚副作用。
+- 本阶段不实现 HTTP Server、Session Event Log、持久化 Inbox 或恢复；具体 API/配置及行为由 [Application](../src/application/README.md)、[Composition](../src/composition/README.md) 和 [Phase 1.6](phase-1.6.md) 维护。
 
 ## 4. 测试与验收规范
 
@@ -121,6 +132,7 @@
 - Phase 1.3 增加无模型/工具的自定义 Loop 契约、流式循环、事件时序、串行工具、完整历史、重试边界、无暗含上限、取消/流清理和并发测试；使用可控离线 Fake 与实际 Runtime 协作验证。
 - Phase 1.4 覆盖惰性单次消费、CustomLoop、事件/结果映射、协议违例、取消竞态、提前退出、清理、并发、快照隔离/保留，以及无 Session 日志读写边界的离线验证。
 - Phase 1.5 覆盖 Manager 生命周期、FIFO/跨 Session 并发、最新历史与配置快照、成功提交、排队/运行取消、事件不消费/提前关闭/溢出以及 result 独立结算；使用 Fake Engine/Loop 与既有 Engine 的离线链路，不依赖真实网络模型。
+- Phase 1.6 覆盖配置优先级/安全校验、Service 委托、Bootstrap 注入/回滚/释放、本地 CLI、模型—串行工具—模型、多轮隔离、取消、失败及输出不重复；所有自动化测试完全离线，无真实凭据依赖。
 - 如果命令由于客观限制没有执行，应在交付说明中明确列出，而非宣称通过。
 - 后续业务开发应为有意义的逻辑提供相应离线单元或集成测试，真实模型烟测只能作为可选验证。
 
@@ -147,7 +159,8 @@
 | `docs/phase-1.2.md`             | 已完成 Tool Runtime 基线与历史验收                       |
 | `docs/phase-1.3.md`             | 已完成 Agent Loop 设计与历史验收                         |
 | `docs/phase-1.4.md`             | 已完成 Execution Engine 设计与历史验收                   |
-| `docs/phase-1.5.md`             | **当前唯一** Agent Management 设计、任务与验收依据       |
+| `docs/phase-1.5.md`             | 已完成 Agent Management 设计与历史验收                   |
+| `docs/phase-1.6.md`             | **当前唯一** Application Service、Composition、CLI 依据  |
 | `docs/phase-1.md`               | Phase 1 阶段顺序索引                                     |
 | `src/runtime/logging/README.md` | 已完成 Logging 接口、配置与安全边界                      |
 | `docs/roadmap.md`               | 后续扩展目标，非当前任务清单                             |
@@ -201,6 +214,6 @@
 
 - 两种工具统一使用 `AGENTS.md`、`docs/AGENT.md`、阶段文件和架构文件，不维护互相冲突的独立业务规范。
 - 接到模块级开发任务后，应**先定位模块，再读取最接近该模块的 `README.md` 和 `changes.md`**；只有跨模块需求才扩大阅读范围。
-- 开始工作前先读 `docs/phase-1.5.md`，并按需参考 Phase 0、Logging、Model、Tool、Loop 与 Engine 基线；只有用户明确切换阶段，才能开展 Phase 1.6 等后续任务。
+- 开始工作前先读 `docs/phase-1.6.md`，并按需参考 Phase 0、Logging 与 Phase 1.1～1.5 基线；完成 Phase 1.6 后停止，只有用户明确授权才能开展后续阶段。
 - 一个任务只做已授权的变更，实际运行对应验证命令，不虚报结果。
 - 因真实代码问题必须改变设计时，说明原因、影响、备选方案和验证依据；确认后**同步更新模块级现行文档与本地历史记录**，全局/跨模块问题再维护项目级记录。

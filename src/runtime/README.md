@@ -21,14 +21,14 @@
 
 ## 当前实现状态
 
-**Logging、Model System 与 Tool Runtime 已完成，是已完成 Loop 和当前 Phase 1.4 Engine 驱动流程的底层能力。**
+**Logging、Model System 与 Tool Runtime 已完成，是既有 Loop/Engine/Agent 流程的底层能力，当前 Phase 1.6 由 Composition 统一装配。**
 
 - [`logging/index.ts`](logging/index.ts) 提供供应商无关的 Logger 与 Pino 实现，支持四级结构化日志、错误信息、子 logger、环境级别、stderr 和脱敏，行为详见 [Logging README](logging/README.md)。
 - [`model/index.ts`](model/index.ts) 提供实现 Harness ModelClient 的 `OpenAICompatibleModelClient`，支持文本、多轮消息、流式、Tool Calling、参数映射、Usage、统一错误、取消/超时和自然并发，行为详见 [Model README](model/README.md)。
 - [`tool/index.ts`](tool/index.ts) 提供 DefaultToolRegistry、DefaultToolExecutor 和 Model Bridge，支持 JSON Schema、工具执行、快照、取消/超时及并发隔离，行为详见 [Tool README](tool/README.md)。
 - Model 与 Tool 复用既有 Logger，默认提供生命周期日志并允许构造时注入。日志只记录可诊断的白名单元数据；日志故障不改变结果或清理语义。
 
-其他 Runtime 能力域尚未实现；Phase 1.4 不新增 Persistence、Event Bus 或 Session 日志读写能力。
+其他 Runtime 能力域尚未实现；Phase 1.6 继续复用既有契约，不新增 Persistence、Event Bus 或 Session 日志读写能力。
 
 ## 后续实现范围
 
@@ -50,7 +50,7 @@ Model 与 Tool 分别通过 Harness 的 ModelClient / ToolRegistry / ToolExecuto
 `npm test` 执行 Logging、Model/Tool 公共契约、Adapter、Schema、工具执行、并发隔离、生命周期日志及工程 smoke 离线测试，不需要真实密钥或外部服务。完整质量命令见 [工程规范](../../docs/conventions.md)。
 
 - [全局架构](../../docs/architecture.md)
-- [当前阶段范围](../../docs/phase-1.4.md)
+- [当前阶段范围](../../docs/phase-1.6.md)
 - [Logging 说明](logging/README.md) / [时间线](logging/changes.md)
 - [Model 说明](model/README.md) / [时间线](model/changes.md)
 - [Tool 说明](tool/README.md) / [时间线](tool/changes.md)

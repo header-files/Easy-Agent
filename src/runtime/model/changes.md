@@ -32,3 +32,12 @@
 - 执行方式：用例写入现有单元/集成测试文件，离线执行，不依赖真实 API Key 或外部服务；不以此前内存检查替代仓库固定回归用例。
 - 已执行定向验证（2026-11-23）：`node --test tests/model-runtime.test.ts` 23 项通过；`node --test tests/agent-loop-integration.test.ts` 8 项通过。新增 3 项顶层单元用例与 1 项顶层链路用例，并扩展既有最终缺失字段的负例表。
 - 最终验证（2026-11-23）：`npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test` 均成功退出；全仓 151 项通过、0 失败、0 跳过（既有审查基线 147 项 + 新增单元 3 项 + 链路集成 1 项）。本轮仅补验证；2026-11-22 的 147 项审查及 Phase 1.3 的 146 项交付验收分别保留，不覆盖历史数字。
+
+## 2026-11-24 — 兼容流式工具片段中的 null 占位
+
+- 主题 ID：`runtime.model-system`
+- 变更前：增量或完整消息中的 `tool_calls: null`、工具片段的非 `function` 空 `type`、`function: null` 和 `arguments: null` 都会返回 `invalid_response`。
+- 变更后：这些 `null` 或空白类型视为该片段尚未提供对应字段。空字符串 arguments 仍计入参数片段；对象形式的 arguments、非数组 `tool_calls` 和结束时缺少有效工具字段仍拒绝。
+- 修改原因：通义兼容流在工具调用过程中用 `null` 表示“本段没有该字段”。真实 `qwen-max` 因此在进入 `add` 工具执行前被判为非法响应。
+- 影响范围：OpenAI-compatible 的流式组装和非流式消息映射、模型离线测试及现行说明；Harness Model 公共契约不变。
+- 现行说明：[README.md](README.md)、[Phase 1.1 流式协议](../../../docs/phase-1.1.md)。

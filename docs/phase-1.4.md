@@ -7,7 +7,7 @@
 
 > **交付状态：2026-11-23 已完成 Phase 1.4 验收；五项工程检查全部通过，187 项测试通过、0 失败、0 跳过。** 本阶段成果与验证边界见 [实际验收记录](#103-实际验收记录)，不自动进入 Phase 1.5。
 
-> 本文件保留 Phase 1.4 的设计基线与 187 项历史验收；当前阶段依据见 [Phase 1.5 Agent Management](phase-1.5.md)。以下 Session 调度等非目标针对 Engine 职责及当时阶段。
+> 本文件保留 Phase 1.4 的设计基线与 187 项历史验收；当前阶段依据见 [Phase 1.6 Application Service / Composition / CLI](phase-1.6.md)。以下 Session 调度等非目标针对 Engine 职责及当时阶段。
 
 ## 1. 目标与范围
 

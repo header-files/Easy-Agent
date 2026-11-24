@@ -31,7 +31,7 @@
 
 ## 后续实现范围
 
-Context Management、Extension、Execution Services、Governance 尚未实现；随后续阶段的真实需求引入。本次定义内存 Session 管理与提交观察协议，不引入持久化 Inbox、Session Event Log、Recovery 或 Phase 1.6 产品装配接口。
+Context Management、Extension、Execution Services、Governance 尚未实现；随后续阶段的真实需求引入。既有内存 Session 管理与提交观察协议在 Phase 1.6 被统一 Application Service 和 Bootstrap 复用；应用操作接口归 Application，不向 Harness 添加产品装配或传输接口。仍不引入持久化 Inbox、Session Event Log 或 Recovery。
 
 ## 协作与边界
 
@@ -40,7 +40,7 @@ Agent 实现 Session 生命周期、FIFO、上下文与结果收敛，并作为 
 ## Coding Agent 开发须知
 
 1. 开发前先阅读仓库根目录 `AGENTS.md`、[`docs/AGENT.md`](../../docs/AGENT.md)、本文件及本目录 [`changes.md`](changes.md)，并按需查阅相邻模块说明。
-2. 仅在用户授权的阶段实现功能。当前唯一阶段设计是 [`docs/phase-1.5.md`](../../docs/phase-1.5.md)；不进入 Phase 1.6 或持久化，不擅自修改 Phase 1.1–1.4 公共契约。
+2. 仅在用户授权的阶段实现功能。当前唯一阶段设计是 [`docs/phase-1.6.md`](../../docs/phase-1.6.md)；复用 Phase 1.1～1.5 公共契约，不擅自修改或提前引入持久化。
 3. 功能落地时，更新本文件的真实实现状态、入口/关键文件、使用及测试方式；不猜测未来接口签名。
 4. 本模块发生实质性设计或实现变化时，先更新本文件，再追加本目录 `changes.md`；跨模块/全局变化同时更新受影响模块及 [`docs/changes.md`](../../docs/changes.md)（如涉及全局决策）。
 
@@ -48,7 +48,7 @@ Agent 实现 Session 生命周期、FIFO、上下文与结果收敛，并作为 
 
 - [全局架构](../../docs/architecture.md)
 - [工程与文档规范](../../docs/conventions.md)
-- [当前阶段范围](../../docs/phase-1.5.md)
+- [当前阶段范围](../../docs/phase-1.6.md)
 - [Model Contracts](contracts/model/README.md)
 - [Tool Contracts](contracts/tool/README.md)
 - [AgentLoop Contracts](contracts/agent-loop/README.md)

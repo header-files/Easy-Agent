@@ -88,7 +88,11 @@ export class StreamState {
       return invalidResponse();
     this.sawChoice = true;
     const delta = choice.delta;
-    if (delta.role !== undefined && delta.role !== 'assistant')
+    if (
+      delta.role !== undefined &&
+      delta.role !== null &&
+      delta.role !== 'assistant'
+    )
       return invalidResponse();
     if (delta.function_call != null || delta.audio != null)
       throw failure(
@@ -103,7 +107,7 @@ export class StreamState {
       if (delta.content !== '')
         events.push({ type: 'text_delta', text: delta.content });
     }
-    if (delta.tool_calls !== undefined) {
+    if (delta.tool_calls != null) {
       if (!Array.isArray(delta.tool_calls)) return invalidResponse();
       for (const item of delta.tool_calls as unknown[])
         events.push(this.toolDelta(item));
@@ -119,8 +123,10 @@ export class StreamState {
       typeof value.index !== 'number' ||
       !Number.isSafeInteger(value.index) ||
       value.index < 0 ||
-      (value.type !== undefined && value.type !== 'function') ||
-      (value.function !== undefined && !record(value.function))
+      (value.type !== undefined &&
+        !placeholder(value.type) &&
+        value.type !== 'function') ||
+      (value.function != null && !record(value.function))
     )
       return invalidResponse();
     const current = this.tools.get(value.index) ?? {
@@ -149,7 +155,7 @@ export class StreamState {
           return invalidResponse();
         current.name = event.name = fn.name;
       }
-      if (fn.arguments !== undefined) {
+      if (fn.arguments != null) {
         if (typeof fn.arguments !== 'string') return invalidResponse();
         current.hasArguments = true;
         current.argumentsJson += fn.arguments;

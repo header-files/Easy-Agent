@@ -1,6 +1,6 @@
 # Agent — 会话与任务管理层
 
-> 模块级现行说明。全局架构见 [`docs/architecture.md`](../../docs/architecture.md)，当前任务依据为 [`docs/phase-1.5.md`](../../docs/phase-1.5.md)。
+> 模块级现行说明。全局架构见 [`docs/architecture.md`](../../docs/architecture.md)，本模块能力依据为 [`docs/phase-1.5.md`](../../docs/phase-1.5.md)；当前 [`Phase 1.6`](../../docs/phase-1.6.md) 由 Application/Composition 复用这些公共能力。
 
 ## 职责与入口
 
@@ -85,4 +85,4 @@ Agent 不重复拼接当前输入，不解析模型策略，不新增 Loop 次�
 
 离线基础测试为 [`tests/default-agent-manager.test.ts`](../../tests/default-agent-manager.test.ts)，独立集成与控制回归见项目 tests 目录。可执行 `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm test`、`npm run build`。实际验收记录见 [changes.md](changes.md)。
 
-本阶段不实现 Session Event Log、Transaction Journal、Write Coordinator、Recovery、Memory、Inbox、Steer/Follow-up、Workspace、复杂调度或 CLI/HTTP/UI；后续由授权阶段逐步装配，不自动进入 Phase 1.6。
+本模块不实现 Session Event Log、Transaction Journal、Write Coordinator、Recovery、Memory、Inbox、Steer/Follow-up、Workspace、复杂调度或 CLI/HTTP/UI。当前 Phase 1.6 通过统一 Application Service 和 Bootstrap 复用 Manager/SessionAgent，不在本模块复制应用交互或装配逻辑。

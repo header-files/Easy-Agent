@@ -35,3 +35,5 @@ export {
   type DefaultAgentManagerOptions,
   SessionEventBufferOverflowError,
 } from './agent/index.ts';
+export * from './application/index.ts';
+export * from './composition/index.ts';

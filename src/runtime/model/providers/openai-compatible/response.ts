@@ -110,7 +110,7 @@ export function mapResponse(
     role: 'assistant',
     content: source.content,
   };
-  if (source.tool_calls !== undefined) {
+  if (source.tool_calls != null) {
     if (!Array.isArray(source.tool_calls)) return invalidResponse();
     const calls = source.tool_calls.map(toolCall);
     if (new Set(calls.map((call) => call.id)).size !== calls.length)

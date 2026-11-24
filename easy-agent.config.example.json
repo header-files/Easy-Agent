@@ -1,0 +1,11 @@
+{
+  "model": {
+    "provider": "openai-compatible",
+    "name": "example-model",
+    "baseUrl": "http://localhost:1234/v1",
+    "parameters": { "temperature": 0.7 }
+  },
+  "agent": { "maxModelRetries": 2 },
+  "cli": { "stream": true },
+  "logging": { "level": "info" }
+}

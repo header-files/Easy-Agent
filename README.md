@@ -2,15 +2,15 @@
 
 > 一个开箱即用、灵活可扩展的通用 Agent。
 
-**项目状态：Phase 1.1～1.5 的 Model、Tool、Loop、Engine 与 Agent Management 已完成。**
+**项目状态：Phase 1.1～1.6 已完成，本地 CLI 可运行。**
 
-已有 DefaultAgentLoop 提供模型—串行工具—模型闭环，DefaultExecutionEngine 驱动默认或自定义 Loop 并管理内存生命周期。本阶段已增加内存 Session 管理、FIFO、多轮上下文、取消和独立事件/结果观察。**Session 日志读写与恢复、工具并行和 CLI/产品装配尚未实现。** 当前唯一阶段依据见 [Phase 1.5 Agent Management](docs/phase-1.5.md)，既有 [Loop](docs/phase-1.3.md) 和 [Engine](docs/phase-1.4.md) 的设计与历史验收分别保留。 2026-11-24 五项工程检查全部通过，216 项离线测试通过、0 失败、0 跳过；完整证据与限制见 [本阶段验收](docs/phase-1.5.md#13-实际交付与验收记录)。
+已有 Model、Tool、DefaultAgentLoop、DefaultExecutionEngine 和 Agent Management 提供模型—串行工具—模型闭环、内存 Session、多轮上下文、FIFO、取消和独立事件/结果观察。已按 [Phase 1.6 唯一设计](docs/phase-1.6.md) 完成统一应用服务、配置与装配、本地 CLI 和端到端离线验收。2026-11-24 五项工程检查全部成功，254 项测试通过、0 失败、0 跳过，完整证据见 [本阶段验收](docs/phase-1.6.md#17-实际交付与验收记录)。未实现 HTTP Server、Session Event Log 或持久化恢复；真实 Provider/API 烟测未运行。Phase 1.5 的 216 项及更早历史验收继续保留。
 
 ## 产品定位
 
 Easy Agent 首先是一个能够直接使用的 Agent 产品，同时为开发者提供灵活的组件定制与扩展能力。它面向两类用户：
 
-- **普通用户**：未来可通过 CLI、HTTP API 或 Web UI 使用默认 Agent，无需自行组装内部组件。
+- **普通用户**：可通过本地 CLI 使用默认 Agent，无需自行组装内部组件；HTTP API 与 Web UI 留待后续。
 - **开发者**：未来可通过 SDK、配置和统一契约接入模型、工具、Skill，按需替换 Agent Loop 和具体 Runtime 能力，不必修改框架核心代码。
 
 核心理念：
@@ -22,12 +22,12 @@ Easy Agent 首先是一个能够直接使用的 Agent 产品，同时为开发�
 
 ## 使用方式与交付阶段
 
-| 使用方式 | 目标能力                     | 预计阶段         |
-| -------- | ---------------------------- | ---------------- |
-| CLI      | 配置模型、连续输入、接收回复 | Phase 1.6        |
-| SDK      | 开发者在应用中调用 Agent     | Phase 2 逐步完善 |
-| HTTP API | 远程交互及 SSE 流式输出      | Phase 2          |
-| Web UI   | 可视化交互                   | 后续阶段         |
+| 使用方式 | 目标能力                                         | 预计阶段         |
+| -------- | ------------------------------------------------ | ---------------- |
+| CLI      | 配置模型、多轮对话、流式输出、Session 切换与取消 | Phase 1.6 已完成 |
+| SDK      | 开发者在应用中调用 Agent                         | Phase 2 逐步完善 |
+| HTTP API | 远程交互及 SSE 流式输出                          | Phase 2          |
+| Web UI   | 可视化交互                                       | 后续阶段         |
 
 ## 工程使用
 
@@ -44,20 +44,89 @@ npm run build
 npm test
 ```
 
-| 命令                   | 作用                                                         |
-| ---------------------- | ------------------------------------------------------------ |
-| `npm run typecheck`    | 严格检查 `src/` 与 `tests/` 的 TypeScript 类型，不生成文件   |
-| `npm run lint`         | 使用 ESLint 检查 TypeScript 源码、测试与 JavaScript 工程配置 |
-| `npm run format:check` | 使用 Prettier 检查代码、配置与文档格式                       |
-| `npm run format`       | 使用 Prettier 修复格式                                       |
-| `npm run build`        | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
-| `npm test`             | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
+| 命令                             | 作用                                                         |
+| -------------------------------- | ------------------------------------------------------------ |
+| `npm run chat -- --model <name>` | 启动本地聊天，模型连接信息由统一配置边界读取                 |
+| `npm run typecheck`              | 严格检查 `src/` 与 `tests/` 的 TypeScript 类型，不生成文件   |
+| `npm run lint`                   | 使用 ESLint 检查 TypeScript 源码、测试与 JavaScript 工程配置 |
+| `npm run format:check`           | 使用 Prettier 检查代码、配置与文档格式                       |
+| `npm run format`                 | 使用 Prettier 修复格式                                       |
+| `npm run build`                  | 仅将 `src/` 编译到 `dist/`，不输出测试文件                   |
+| `npm test`                       | 自动先构建，再使用 Node.js 内置测试运行器执行全部离线测试    |
 
-`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop/Execution/Agent 契约、DefaultAgentLoop、DefaultExecutionEngine、DefaultAgentManager 和 SessionEventBufferOverflowError。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理、Engine 生命周期/取消/快照、Session FIFO/上下文/取消、观察流与独立结果及日志安全。该私有包尚未作为 Agent SDK 发布。
+`src/index.ts` 导出 Logger/createLogger、Model/Tool 公共契约、OpenAICompatibleModelClient、DefaultToolRegistry/DefaultToolExecutor、两个 Model Bridge、AgentLoop/Execution/Agent 契约、DefaultAgentLoop、DefaultExecutionEngine、DefaultAgentManager、SessionEventBufferOverflowError、统一 AgentApplicationService、配置解析和 bootstrap。测试保留源码/构建入口 ESM smoke test，并覆盖 Logging、公共模型契约、Adapter 映射、流式工具组装、取消/超时、并发隔离、Tool Runtime、Model Bridge、Loop 闭环/事件/重试/清理、Engine 生命周期/取消/快照、Session FIFO/上下文/取消、观察流与独立结果、配置/装配/CLI、端到端模型工具闭环及日志安全。该私有包尚未作为 Agent SDK 发布。
 
-安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。Provider 配置通过实例构造参数显式传入；不自动读取 `.env`，没有 CLI 对话命令。
+安装依赖需要访问 npm 源；安装后，上述检查、构建和测试均不需要模型 API Key、网络模型服务或数据库。低层 ModelClient 仍通过构造参数接收 Provider 配置；本地应用在 Composition 配置边界读取 CLI/环境/显式 JSON 文件，不自动加载 `.env`。
 
 Git 主分支为 `main`，远程 `origin` 为 `git@github.com:header-files/Easy-Agent.git`。工程版本与配置细则见 [工程规范](docs/conventions.md)。
+
+## 本地 CLI
+
+依赖安装后，在仓库根目录启动：
+
+```bash
+npm run chat -- --model your-model-id
+# 或显式读取无密钥的示例配置；需将模型名/地址改为可用服务
+npm run chat -- --config easy-agent.config.example.json
+npm run chat -- --help
+node src/application/cli/bin.ts --version
+```
+
+构建后的入口不需要 TypeScript 运行支持：
+
+```bash
+npm run build
+node dist/application/cli/bin.js chat --model your-model-id
+node dist/application/cli/bin.js --help
+node dist/application/cli/bin.js --version
+```
+
+包的 `bin` 名称为 `easy-agent`；完成本地包链接后对应命令为 `easy-agent chat`。仓库直接运行方式为上述 npm/Node 命令，本次未将 `npm link` 作为安装或验收前置步骤。
+
+API Key 使用 `OPENAI_API_KEY`，不提供密钥命令行选项。配置优先级为 **CLI 显式选项 > 环境变量 > 显式 JSON 文件 > 内置默认值**；不自动读取 `.env` 或查找用户配置文件。
+
+| 配置                 | CLI 选项                      | 环境变量                       | 默认值                         |
+| -------------------- | ----------------------------- | ------------------------------ | ------------------------------ |
+| 模型名称             | `--model <name>`              | `EASY_AGENT_MODEL`             | 必填                           |
+| Provider 地址        | `--base-url <url>`            | `EASY_AGENT_BASE_URL`          | Adapter 默认 OpenAI `/v1` 地址 |
+| API Key              | —                             | `OPENAI_API_KEY`               | 可选，允许无认证本地服务       |
+| 模型失败后的额外重试 | `--max-model-retries <count>` | `EASY_AGENT_MAX_MODEL_RETRIES` | `2`                            |
+| 实时正文             | `--no-stream` 关闭            | `EASY_AGENT_STREAM`            | `true`                         |
+| 日志级别             | —                             | `LOG_LEVEL`                    | `info`                         |
+| JSON 配置路径        | `--config <path>`             | —                              | 不自动读取文件                 |
+
+[示例配置](easy-agent.config.example.json) 使用无认证本地服务占位地址和示例模型名；[环境变量示例](.env.example) 仅供参考，不会自动加载。模型参数在 JSON 的 `model.parameters` 中设置。地址、凭据、非法重试次数等由统一配置入口安全校验；连接配置不放入多轮消息历史。
+
+每轮输入等待独立最终结果后再处理下一行。`/new` 创建并切换到新的空 Session，旧 Session 仍留在当前进程；`/exit` 正常清理退出。执行期间 Ctrl+C 显式请求取消当前任务，等待实际终态后可继续输入；空闲时 Ctrl+C 退出。EOF 处理完已接收输入后清理。Session 仅在内存中，退出后不恢复。
+
+正文只根据 `output_delta` 实时输出，不重复打印模型事件或工具结果。最终结果是权威答案；观察流异常仍等待最终结果，必要时补足或明确替换此前预览。失败会显示清晰错误，不透传原始堆栈/敏感配置；`--no-stream` 只显示最终答案。详细交互与限制见 [CLI README](src/application/cli/README.md)。
+
+## 统一应用服务与装配
+
+CLI 与未来 HTTP 适配器共用 `AgentApplicationService`。它委托现有 Manager/SessionAgent，不维护第二份队列、历史或事件缓存；Composition 负责统一配置、依赖装配和资源所有权。
+
+```javascript
+import { bootstrap, loadConfig } from './dist/index.js';
+
+const config = await loadConfig({
+  filePath: './easy-agent.config.example.json',
+});
+const app = await bootstrap(config);
+try {
+  const { sessionId } = app.service.createSession();
+  const execution = app.service.submit(sessionId, '请计算 2 加 3');
+  const result = await execution.result; // 不观察 events 也会执行
+  if (result.status === 'COMPLETED') {
+    process.stdout.write(`${result.loopResult.output ?? ''}\n`);
+  }
+} finally {
+  await app.dispose();
+}
+```
+
+默认装配复用已有模型、工具、Loop、Engine 和 Manager，注册无外部副作用的 `add({a,b})` 工具；多工具仍由既有 Loop 串行执行。可通过 `bootstrap(config, { modelClient: mock })` 注入离线模型，也可替换 Loop/Engine/Manager；外部共享依赖仍归调用方所有。自有模型工厂可返回 `{client, dispose?}`，由 Bootstrap 管理回滚与释放。
+
+`dispose()` 幂等：先关闭提交入口，取消并等待经本应用 Service 提交的未结算任务，再逆序释放自有资源。取消/清理保持协作边界，不设置隐藏超时或假称任意底层副作用已停止。准确 API、配置和所有权见 [Application](src/application/README.md) 与 [Composition](src/composition/README.md)。
 
 ## Logging 使用
 
@@ -259,7 +328,7 @@ submit 同步入队，内部主动消费 Engine；同 Session FIFO、不同 Sess
 
 这一层观察流与直接消费 Engine 不同：直接退出 Engine 流会请求取消。Session 运行取消必须等协作收尾才放行下一项；不合作的依赖可能使任务持续活动，不设隐藏清理超时。Manager 只删除空闲 Session，删除后的旧 Session 引用拒绝 submit。
 
-自定义 Loop 可以不配置模型；仅覆盖 model.parameters 时须有可继承或显式提供的模型名。配置合并、上下文隔离与 opaque 能力引用限制、ID 工厂及统一日志边界见 [Agent 模块](src/agent/README.md)，公共接口见 [Agent Contracts](src/harness/contracts/agent/README.md)。当前不读写 Session Event Log JSONL，不实现持久化、恢复、持久化 Inbox、Runtime 广播或 Phase 1.6 装配/CLI；完整设计只在 [Phase 1.5](docs/phase-1.5.md) 维护。
+自定义 Loop 可以不配置模型；仅覆盖 model.parameters 时须有可继承或显式提供的模型名。配置合并、上下文隔离与 opaque 能力引用限制、ID 工厂及统一日志边界见 [Agent 模块](src/agent/README.md)，公共接口见 [Agent Contracts](src/harness/contracts/agent/README.md)。Agent 模块不读写 Session Event Log JSONL，不实现持久化、恢复、持久化 Inbox 或 Runtime 广播；其完整设计只在 [Phase 1.5](docs/phase-1.5.md) 维护。当前 Phase 1.6 在上层通过统一 Service 与 Bootstrap 复用这些能力。
 
 ## 当前目录
 
@@ -273,7 +342,8 @@ easy-agent/
 ├── README.md / docs/
 ├── src/
 │   ├── index.ts
-│   ├── application/               # 仅 README.md / changes.md
+│   ├── application/               # 统一 AgentApplicationService
+│   │   └── cli/                   # 本地交互、输出与可执行入口
 │   ├── agent/                     # Session 管理、FIFO、上下文与观察流
 │   ├── execution/
 │   │   ├── loops/                 # 已有 DefaultAgentLoop
@@ -288,7 +358,7 @@ easy-agent/
 │   │   ├── logging/               # Logger 门面、Pino 适配与就近文档
 │   │   ├── model/                 # Chat Completions Adapter 与就近文档
 │   │   └── tool/                  # Registry/Executor、Schema 校验和桥接
-│   └── composition/               # 仅 README.md / changes.md
+│   └── composition/               # 配置、Bootstrap、生命周期和安全演示工具
 └── tests/                         # 工程与所有已实现能力的离线验证
 ```
 
@@ -320,12 +390,13 @@ easy-agent/
 - [Phase 1.2：已完成 Tool Runtime 与历史验收](docs/phase-1.2.md)
 - [Phase 1.3：已完成 Agent Loop 设计与历史验收](docs/phase-1.3.md)
 - [Phase 1.4：Execution Engine 设计与历史验收](docs/phase-1.4.md)
-- [Phase 1.5：当前唯一 Agent Management 依据](docs/phase-1.5.md)
+- [Phase 1.5：已完成 Agent Management 与历史验收](docs/phase-1.5.md)
+- [Phase 1.6：当前唯一 Application Service / Composition / CLI 依据](docs/phase-1.6.md)
 - [后续功能路线图](docs/roadmap.md)
 - [项目级变更记录](docs/changes.md)
 - 模块就近文档：[Application](src/application/README.md) · [Agent](src/agent/README.md) · [Execution](src/execution/README.md) · [Harness](src/harness/README.md) · [Runtime](src/runtime/README.md) · [Composition](src/composition/README.md)
 
-**当前阶段唯一依据为 `docs/phase-1.5.md`。** 只完成 Phase 1.5，不自动进入 Phase 1.6；`docs/roadmap.md` 不是自动接续开发清单。
+**当前阶段唯一依据为 `docs/phase-1.6.md`。** 完成 Phase 1.6 后停止，不自动开发 HTTP/Persistence；`docs/roadmap.md` 不是自动接续开发清单。
 
 ## 文档维护原则
 

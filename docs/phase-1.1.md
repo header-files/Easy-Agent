@@ -4,7 +4,7 @@
 >
 > 交付状态：**2026-11-21 已完成 Phase 1.1 实现与离线工程验收**。76 项测试通过、0 失败、0 跳过；未进行真实 Provider/API 调用验证，不自动接续 Phase 1.2。
 
-> 本文件保留 **Phase 1.1 的实现基线与 76 项历史验收**。Phase 1.2 Tool Runtime 已完成，当前阶段见 [Phase 1.5 Agent Management](phase-1.5.md)；以下非目标针对 Model System 的职责和当时阶段，不表示独立 Tool Runtime 仍属未实现能力。Model 不执行工具，Tool Runtime 通过桥接复用其数据类型；完整循环由 Phase 1.3 的 DefaultAgentLoop 实现。
+> 本文件保留 **Phase 1.1 的实现基线与 76 项历史验收**。Phase 1.2 Tool Runtime 已完成，当前阶段见 [Phase 1.6 Application Service / Composition / CLI](phase-1.6.md)；以下非目标针对 Model System 的职责和当时阶段，不表示独立 Tool Runtime 仍属未实现能力。Model 不执行工具，Tool Runtime 通过桥接复用其数据类型；完整循环由 Phase 1.3 的 DefaultAgentLoop 实现。
 
 ## 1. 目标与职责
 
@@ -48,7 +48,7 @@ ToolResult 通过 toolCallId 关联调用；isError 表示工具执行错误。C
 
 成功顺序为 `message_start` → 零个或多个 `text_delta` / `tool_call_delta` → `message_end`。开始/结束各一次；结束事件带完整响应，文本和工具参数与增量拼接一致。
 
-每次请求按工具 index 独立组装，可交错接收多个工具调用，id/name 可晚于参数出现。片段中的 `null` 或空白 id/name 视为尚未提供，不覆盖已确定值；已确定 id/name 的冲突或结束时缺少必要字段返回 invalid_response。index 不进入最终 ModelToolCall。失败、超时或取消通过迭代抛出 ModelError，不能产生成功结束事件。
+每次请求按工具 index 独立组装，可交错接收多个工具调用，id/name 可晚于参数出现。片段中的 `null` 或空白 id/name 视为尚未提供，不覆盖已确定值；已确定 id/name 的冲突或结束时缺少必要字段返回 invalid_response。消息或片段里的 `tool_calls: null` 表示没有工具调用；工具片段中的 `null` 或空白 `type`、`function: null` 和 `arguments: null` 同样表示该片段尚未提供对应字段，空字符串 arguments 仍是有效片段。index 不进入最终 ModelToolCall。失败、超时或取消通过迭代抛出 ModelError，不能产生成功结束事件。
 
 流在实际开始消费时才发请求并启动计时。timeoutMs 覆盖完整响应读取或完整流消费；提前停止迭代应取消请求并释放连接。模型请求取消不保证服务端立即停止计算。
 

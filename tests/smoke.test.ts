@@ -19,6 +19,13 @@ test('TypeScript 源码入口能够作为 ESM 加载', async () => {
   assert.equal(typeof entry.DefaultExecutionEngine, 'function');
   assert.equal(typeof entry.DefaultAgentManager, 'function');
   assert.equal(typeof entry.SessionEventBufferOverflowError, 'function');
+  assert.equal(typeof entry.AgentApplicationError, 'function');
+  assert.equal(typeof entry.DefaultAgentApplicationService, 'function');
+  assert.equal(typeof entry.ConfigurationError, 'function');
+  assert.equal(typeof entry.resolveConfig, 'function');
+  assert.equal(typeof entry.loadConfig, 'function');
+  assert.equal(typeof entry.BootstrapError, 'function');
+  assert.equal(typeof entry.bootstrap, 'function');
 });
 
 test('构建入口能够由 Node.js 直接作为 JavaScript ESM 加载', async () => {
@@ -32,12 +39,45 @@ test('构建入口能够由 Node.js 直接作为 JavaScript ESM 加载', async (
        typeof entry.OpenAICompatibleModelClient, typeof entry.ToolExecutionError,
        typeof entry.DefaultToolRegistry, typeof entry.DefaultToolExecutor,
        typeof entry.DefaultAgentLoop, typeof entry.DefaultExecutionEngine,
-       typeof entry.DefaultAgentManager, typeof entry.SessionEventBufferOverflowError].join(':'));`,
+       typeof entry.DefaultAgentManager, typeof entry.SessionEventBufferOverflowError,
+       typeof entry.AgentApplicationError, typeof entry.DefaultAgentApplicationService,
+       typeof entry.ConfigurationError, typeof entry.resolveConfig, typeof entry.loadConfig,
+       typeof entry.BootstrapError, typeof entry.bootstrap].join(':'));`,
   ]);
 
   assert.equal(
     stdout,
-    'Module:function:function:function:function:function:function:function:function:function:function',
+    `Module:${Array<string>(17).fill('function').join(':')}`,
   );
   assert.equal(stderr, '');
+});
+
+test('编译后CLI入口可显示帮助/版本，导入时不执行且不需模型配置', async () => {
+  const bin = new URL('../dist/application/cli/bin.js', import.meta.url);
+  const help = await execFileAsync(
+    process.execPath,
+    ['--no-strip-types', bin.pathname, '--help'],
+    { env: {} },
+  );
+  assert.match(help.stdout, /easy-agent chat/);
+  assert.equal(help.stderr, '');
+  const version = await execFileAsync(
+    process.execPath,
+    [bin.pathname, '--version'],
+    { env: {} },
+  );
+  assert.equal(version.stdout.trim(), 'easy-agent 0.0.0');
+  assert.equal(version.stderr, '');
+  const imported = await execFileAsync(
+    process.execPath,
+    [
+      '--no-strip-types',
+      '--input-type=module',
+      '--eval',
+      `await import(${JSON.stringify(bin.href)});`,
+    ],
+    { env: {} },
+  );
+  assert.equal(imported.stdout, '');
+  assert.equal(imported.stderr, '');
 });

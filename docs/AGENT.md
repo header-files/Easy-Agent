@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.5 Agent Management，唯一阶段依据为 `docs/phase-1.5.md`；不自动接续 Phase 1.6 Composition + CLI。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 1.6 Application Service / Composition / CLI，唯一阶段依据为 `docs/phase-1.6.md`；完成后停止，不自动接续 HTTP/Persistence 等后续阶段。**
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-1.5.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.4 保留各自基线与历史验收。**
+3. **`docs/phase-1.6.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.5 保留各自基线与历史验收。**
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,42 +29,40 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前阶段应该做什么：Phase 1.5
+## 3. 当前阶段应该做什么：Phase 1.6
 
-在已有 Logging、Model、Tool、[Agent Loop](phase-1.3.md) 和 [Execution Engine](phase-1.4.md) 基线上，严格执行 [Phase 1.5 唯一设计](phase-1.5.md)：
+在已有 Logging、Model、Tool、[Agent Loop](phase-1.3.md)、[Execution Engine](phase-1.4.md) 和 [Agent Management](phase-1.5.md) 基线上，严格执行 [Phase 1.6 唯一设计](phase-1.6.md)：
 
-- Harness 定义 AgentManager、SessionAgent、SessionExecution、创建/提交配置和摘要；直接引用已有 Context、ModelParameters 和 Execution 协议，不复制平行类型。
-- Agent 实现默认 Manager 和 SessionAgent：内存 Session 创建、稳定获取/列表、空闲删除；删除后的旧引用拒绝 submit，不强制删除或丢弃活跃任务。
-- submit 同步登记 FIFO 并返回句柄，每 Session 只有一个调度泵、至多一个活动执行；不同 Session 允许并发，ID 由 Agent 层分配。
-- 在任务实际启动时读取最新已提交上下文和本次配置快照；仅 COMPLETED 且 updatedContext 存在时整体替换上下文。失败、取消和 stopped 不提交；缺少更新不猜测历史。
-- 按模型名/参数、工具名单和 extensions 命名空间规则合并配置，不修改默认配置或调用方参数；不强制自定义 Loop 使用模型。
-- 内部唯一消费 Engine 的惰性事件流，先确认收尾、提交上下文，再 resolve result，之后启动下一项；错误不能令结果 Promise 永久悬挂或形成未处理拒绝。
-- events 是有界、单消费者、单次遍历的观察流。无人读取、观察者退出或溢出均不取消/阻塞 Execution；溢出明确使观察流失败，result 与上下文提交保持独立。
-- 区分排队与运行取消：排队取消不调用 Engine、也不伪造生命周期事件；运行取消使用独立 signal，等待 Engine 的协作收尾，不提前放行同 Session 下一项。
+- Application 定义统一 AgentApplicationService，委托 Manager/SessionAgent 的创建、列表、删除、提交与取消；只验证应用级入参并映射稳定错误，不重复存储上下文或队列。
+- Composition / Bootstrap 集中读取、合并和验证配置，按 CLI 显式选项 > 环境变量 > 配置文件 > 默认值处理；底层组件继续显式注入，不各自读取外部配置。
+- 复用 Phase 1.1～1.5 实现，提供简单组件替换入口、失败回滚和幂等 dispose；只释放自有资源，先请求取消并等待任务协作收尾。
+- 本地 CLI 从 Bootstrap 获取统一 Service，支持 chat、帮助/版本、连续对话、/new、/exit 与 Ctrl+C；不得直接构造或调用 Model/Tool/Loop/Engine。
+- CLI 只将 output_delta 作为流式正文，不重复打印 model_event；事件观察与最终 result 独立处理，观察异常不擅自取消任务或判执行失败。
+- 用注入 Mock ModelClient 的真实装配完成纯离线模型→工具→模型、多轮 Session、隔离、取消、错误与清理测试；多工具保持既有串行策略。
 
-当前只授权 Phase 1.5；整体顺序仍为 1.1 Model → 1.2 Tool → 1.3 Loop → 1.4 Engine → **1.5 Agent Management** → 1.6 Composition + CLI。
+当前只授权 Phase 1.6；整体顺序为 1.1 Model → 1.2 Tool → 1.3 Loop → 1.4 Engine → 1.5 Agent Management → **1.6 Application Service / Composition / CLI**。此前公共契约与默认策略继续有效。
 
 ## 4. 不在本次阶段实现的功能
 
+- HTTP Server、REST/SSE、Web UI、正式 SDK、CLI 远程模式及 HTTP 专有路由、鉴权或线协议。
 - **Session Event Log 的 JSONL 读取和写入**、Session Write Coordinator、Transaction Journal、持久化事件投影、重放或崩溃恢复。
-- Runtime Event Bus、SSE、多订阅者广播；观察流和 ExecutionEvent 仍是内存通知，不是持久化事实。
-- 持久化 Inbox、Steer/Follow-up、Approval/HITL、Pause/Resume、Session Tree、Workspace、Memory、上下文压缩或复杂优先级/全局调度。
-- 完整 Turn/Step/Attempt 状态机、工具并行、Composition/Bootstrap 装配或 CLI/HTTP/Web UI。
-- 修改 Phase 1.1–1.4 公共协议或默认 Loop 策略；不向 Engine ExecutionStatus 加 QUEUED。
+- Runtime Event Bus、多订阅者广播、持久化 Inbox、Steer/Follow-up、Approval/HITL、Pause/Resume、Session Tree、Workspace、Memory、上下文压缩及复杂调度。
+- 完整 Turn/Step/Attempt 状态机、工具并行、模型/工具/迭代总次数上限、复杂 DI 或动态插件平台。
+- 擅自修改 Phase 1.1～1.5 公共协议或默认 Loop 策略；不向 Engine ExecutionStatus 加 QUEUED。
 
-Session 的进程内 FIFO 属于本次 Agent 职责，未来 Session Event Log 的物理读写仍归 Runtime/Persistence；不创建 JSONL 文件、假存储或占位持久化接口。
+Session 的进程内 FIFO 继续由 Agent 负责，Service/CLI/Composition 不重新调度。未来 Session Event Log 的物理读写仍归 Runtime/Persistence，不创建 JSONL 文件、假存储或占位持久化接口。
 
 ## 5. 推荐开发顺序
 
 严格按 A → B → C → D → E 推进；每一步完成对应验证后再开展下一步：
 
-1. A：先核对旧契约兼容性，完成 Harness Agent Management 契约、公共导出和契约用例。
-2. B：默认 Manager 的依赖注入、Session 创建/注册/查询/稳定摘要/空闲删除与 ID。
-3. C：上下文安全快照、配置覆盖和仅成功提交规则，证明多轮获取最新历史。
-4. D：FIFO 内部调度、排队/运行取消、独立观察流、有界溢出和结果结算，验证并发与失败恢复。
-5. E：补齐离线单元/集成测试与模块/项目文档，执行五项工程检查并报告真实结果。
+1. A：核对旧契约，实现统一应用服务及稳定应用错误，完成不依赖终端或模型的模块测试。
+2. B：配置优先级与校验、默认装配、可控注入、资源所有权、初始化失败回滚和幂等释放。
+3. C：本地 CLI 交互、实时正文、独立最终结果、Session 切换、显式取消及退出。
+4. D：通过既有组件与 Mock ModelClient 验证真实模型—工具—模型闭环、多轮/隔离、失败和清理。
+5. E：更新模块/项目文档，执行五项工程检查并报告实际结果。
 
-完成后停止，不自动进入 Phase 1.6；不把内存历史或观察事件直接写成 Session Event Log。
+完成后停止，不自动进入 HTTP/Persistence；不把内存历史或观察事件直接写成 Session Event Log。
 
 ## 6. 开发与验证约束
 
@@ -102,7 +100,8 @@ Session 的进程内 FIFO 属于本次 Agent 职责，未来 Session Event Log �
 | `docs/phase-1.2.md`             | 已完成 Tool Runtime 基线与历史验收                                               |
 | `docs/phase-1.3.md`             | 已完成 Agent Loop 设计与历史验收                                                 |
 | `docs/phase-1.4.md`             | 已完成 Execution Engine 设计与历史验收                                           |
-| `docs/phase-1.5.md`             | **当前唯一** Agent Management 设计、任务与验收依据                               |
+| `docs/phase-1.5.md`             | 已完成 Agent Management 设计与历史验收                                           |
+| `docs/phase-1.6.md`             | **当前唯一** Application Service、Composition、CLI 与端到端验收依据              |
 | `docs/phase-1.md`               | Phase 1 阶段顺序索引                                                             |
 | `src/runtime/logging/README.md` | 已完成 Logging 的接口、配置与安全边界                                            |
 | `docs/roadmap.md`               | 后续能力范围，不是本期待办                                                       |
@@ -143,6 +142,6 @@ Session 的进程内 FIFO 属于本次 Agent 职责，未来 Session Event Log �
 
 1. 创建或修改了哪些文件，项目骨架实际完成到什么程度。
 2. 运行过的 `typecheck`、`lint`、`format:check`、`build`、`test` 命令及**真实结果**。
-3. 当前未实现的功能（尤其是 Session 日志读写、恢复、持久化 Inbox、工具并行和 CLI 交互）；本次影响的模块说明文件与本地变更日志。
+3. 当前未实现的功能（尤其是 HTTP、Session 日志读写、恢复、持久化 Inbox 和工具并行）；本次影响的模块说明文件与本地变更日志。
 4. 是否涉及实质性设计/实现变更，变更记录是否已追加。
 5. 需要用户决策的架构偏离或阻塞，不自行扩大任务范围。

@@ -8,5 +8,7 @@ coverage/
 .env
 .env.*
 !.env.example
+easy-agent.config.json
+easy-agent.config.local.json
 *.pem
 *.key
