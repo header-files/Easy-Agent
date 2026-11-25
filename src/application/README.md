@@ -19,7 +19,7 @@
 
 ## 当前实现状态
 
-Phase 1.6 已实现统一的 `AgentApplicationService`、默认轻量实现及本地 CLI；Phase 2.1 增加已注册模型目录与 Session 模型切换。CLI 通过 Composition 获取同一个 Service 门面；HTTP、SDK 和 Web UI 尚未实现。
+Phase 1.6 已实现统一的 `AgentApplicationService`、默认轻量实现及本地 CLI；Phase 2.1 增加已注册模型目录与 Session 模型切换；Phase 2.2 增加 Workspace CRUD/状态/recover、审批 list/decide/订阅，以及创建 Session 时绑定 Workspace。CLI 通过 Composition 获取同一个 Service 门面；HTTP、SDK 和 Web UI 尚未实现。
 
 公共入口为 [`index.ts`](index.ts)：
 
@@ -65,7 +65,7 @@ npm run build
 node dist/application/cli/bin.js chat --config easy-agent.config.example.json
 ```
 
-CLI 支持多轮输入、`/model` 查看与切换模型、`/new` 新建并切换 Session、`/exit` 顺序退出，以及 Ctrl+C 显式取消当前 Execution。每轮等待独立最终结果后处理下一条输入，保留管道多行和 EOF；不复制 Agent FIFO。观察流失败不会取消执行，结果完成前不会释放应用。
+CLI 支持多轮输入、`/model` 查看与切换模型、`/workspace status|list|recover`、`/new` 新建并切换 Session、`/exit` 顺序退出，以及 Ctrl+C 显式取消当前 Execution。启动时展示 OS 与默认 Shell。写工具/Terminal 审批通过同一输入通道（`ask`）完成，避免嵌套 readline。每轮等待独立最终结果后处理下一条输入，保留管道多行和 EOF；不复制 Agent FIFO。观察流失败不会取消执行，结果完成前不会释放应用。
 
 仅打印 `output_delta` 作为实时正文，模型原始 text_delta 不重印；模型工具往返按 message_start 划分预览，最终回答一致时不重复打印、缺少后缀时补足。非一致最终结果明确标为替换预览。配置统一由 [Composition](../composition/README.md) 解析，Provider 密钥不进入 Session config 或错误输出。
 
@@ -73,7 +73,9 @@ CLI 支持多轮输入、`/model` 查看与切换模型、`/new` 新建并切换
 
 `node --test tests/agent-application-service.test.ts` 覆盖共享非 CLI 调用、句柄透传、FIFO 与最新上下文、跨 Session 取消隔离、忙碌删除、应用错误安全、默认配置覆盖及模型优先级/固化。使用 Fake Manager 和真实 DefaultAgentManager/DefaultExecutionEngine 的离线协作；无网络或密钥依赖。
 
-`node --test tests/cli.test.ts` 覆盖参数映射、帮助/版本、`/model`、顺序输入、新 Session、实时输出与模型往返去重、权威结果补足、观察错误、最终结果拒绝、Ctrl+C、初始化退出和清理。完整工程与端到端实测见 [Phase 2.1](../../docs/phase-2.1.md)。
+`node --test tests/cli.test.ts` 覆盖参数映射、帮助/版本、`/model`、顺序输入、新 Session、实时输出与模型往返去重、权威结果补足、观察错误、最终结果拒绝、Ctrl+C、初始化退出和清理。
+
+`node --test tests/phase-2.2-application.test.ts` 覆盖 Workspace 绑定、写文件批准/拒绝与 CLI `/workspace` + 审批交互。完整工程与端到端实测见 [Phase 2.2](../../docs/phase-2.2.md)。
 
 ## 后续实现范围
 

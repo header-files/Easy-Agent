@@ -236,7 +236,7 @@ test('CLI多轮继承上下文且/new创建空历史，不删除旧Session或把
   assert.equal(errors.text(), '');
 });
 
-test('真实bootstrap贯通模型→默认add工具→模型，结果与提交上下文保持调用ID配对', async () => {
+test('真实bootstrap贯通模型→注入工具→模型，结果与提交上下文保持调用ID配对', async () => {
   const requests: ModelRequest[] = [];
   const output = capture();
   const errors = capture();
@@ -269,6 +269,25 @@ test('真实bootstrap贯通模型→默认add工具→模型，结果与提交�
       const app = await bootstrap(effective, {
         ...provider(client),
         logger: quiet,
+        tools: [
+          {
+            spec: {
+              name: 'add',
+              description: 'Add two finite numbers and return their sum.',
+              parameters: {
+                type: 'object',
+                properties: { a: { type: 'number' }, b: { type: 'number' } },
+                required: ['a', 'b'],
+                additionalProperties: false,
+              },
+            },
+            handler(args) {
+              return {
+                content: String((args.a as number) + (args.b as number)),
+              };
+            },
+          },
+        ],
       });
       const delegate = app.service;
       return {

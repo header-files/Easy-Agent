@@ -119,6 +119,15 @@ export class DefaultAgentLoop implements AgentLoop {
                 ...(prepared.options.toolTimeoutMs === undefined
                   ? {}
                   : { timeoutMs: prepared.options.toolTimeoutMs }),
+                ...(context.metadata?.workspaceId === undefined
+                  ? {}
+                  : { workspaceId: context.metadata.workspaceId }),
+                ...(context.metadata?.sessionId === undefined
+                  ? {}
+                  : { sessionId: context.metadata.sessionId }),
+                ...(context.metadata?.executionId === undefined
+                  ? {}
+                  : { executionId: context.metadata.executionId }),
               },
             ),
           );

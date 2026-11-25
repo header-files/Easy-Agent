@@ -36,7 +36,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 这张图是**职责组织图，不是执行请求调用链**。Harness 不是 Execution 与 Runtime 之间的必经中间件；Composition / Bootstrap 负责装配，不负责运行用户任务。各模块通过必要的契约直接协作。
 
-**Phase 0、Logging 与 Phase 1.1～1.5 的 Model/Tool/Loop/Engine/Agent 已完成；Phase 1.6 Application Service / Composition / CLI 亦已完成，持久化仍属后续设计。** 工程基线与历史验收见 [Phase 0](phase-0.md)，当前唯一阶段依据见 [Phase 1.6](phase-1.6.md)；实际能力与验收边界以模块文档和阶段记录为准。
+**Phase 0、Logging、Phase 1.1～1.6 与 Phase 2.1 已完成；当前阶段为 [Phase 2.2](phase-2.2.md)（内置工具、Workspace、审批与本地受控执行）。** 工程基线与历史验收见各阶段文档；实际能力与验收边界以模块文档和阶段记录为准。
 
 ## 2. 核心模块职责
 
@@ -70,7 +70,7 @@ SessionAgent 是 Engine 事件流的内部唯一消费者，任务从 submit 同
 
 ### 2.5 Runtime
 
-具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions、OpenAI Responses，以及启动期 Model Registry / Router；Composition 按 Provider `type` 选择工厂并按 Provider ID 创建独立实例。`src/runtime/tool/` 通过 ToolRegistry/ToolExecutor 契约提供独立工具注册、校验、执行与轻量模型数据桥接；模型与工具不自行互相调用，循环策略由 Execution 的 DefaultAgentLoop 实现，不放入 Runtime。
+具体能力按领域划分，例如 Model、Tool、MCP、Skill、Memory、Event、Persistence、Approval、Workspace、Sandbox、Resource。**优先按单项能力替换**；不要求替换模型时重做全部 Runtime。`src/runtime/logging/` 已提供供应商无关的 Logger 门面。当前 `src/runtime/model/` 通过 Harness 的 ModelClient 契约提供 OpenAI-compatible Chat Completions、OpenAI Responses，以及启动期 Model Registry / Router；Composition 按 Provider `type` 选择工厂并按 Provider ID 创建独立实例。`src/runtime/tool/` 通过 ToolRegistry/ToolExecutor 契约提供独立工具注册、校验、`GuardedToolExecutor` 前置链、FileSystem/Terminal 内置工具与轻量模型数据桥接；`src/runtime/workspace/` 与 `src/runtime/approval/` 提供进程内 Workspace 锁/UNSAFE 与审批。模型与工具不自行互相调用，循环策略由 Execution 的 DefaultAgentLoop 实现，不放入 Runtime。
 
 ### 2.6 Composition / Bootstrap
 

@@ -3,6 +3,7 @@ import { createInterface, type Interface } from 'node:readline';
 import type { Readable, Writable } from 'node:stream';
 import {
   bootstrap,
+  BootstrapError,
   loadConfig,
   ConfigurationError,
   type EasyAgentApplication,
@@ -12,7 +13,10 @@ import {
 import { AgentApplicationError } from '../agent-application-service.ts';
 import type { SessionExecution } from '../../harness/contracts/agent/index.ts';
 import { CliArgumentError, help, parseChatArguments } from './arguments.ts';
-import { renderExecution } from './render-execution.ts';
+import {
+  renderExecution,
+  subscribeApprovalPrompts,
+} from './render-execution.ts';
 
 export interface CliSignalSource {
   on(event: 'SIGINT', listener: () => void): unknown;
@@ -35,7 +39,13 @@ function reportFailure(error: unknown, destination: Writable): void {
     destination.write(`${error.message}\n`);
   else if (error instanceof ConfigurationError)
     destination.write(`配置错误：${error.message}\n`);
-  else if (error instanceof AgentApplicationError) {
+  else if (error instanceof BootstrapError) {
+    destination.write(
+      error.code === 'initialization_failed'
+        ? `应用初始化失败（阶段：${error.stage}）。请检查配置中的模型、workspace.path 与运行环境。\n`
+        : '应用清理失败。\n',
+    );
+  } else if (error instanceof AgentApplicationError) {
     const messages = {
       invalid_input: '输入或会话选项无效。',
       session_not_found: '找不到指定的 Session。',
@@ -44,6 +54,120 @@ function reportFailure(error: unknown, destination: Writable): void {
     };
     destination.write(`${messages[error.code]}\n`);
   } else destination.write('应用操作失败，请检查配置和运行环境。\n');
+}
+
+function createBoundSession(
+  service: EasyAgentApplication['service'],
+  workspaceId: string | undefined,
+  allowedNames: string[] | undefined,
+): string {
+  return service.createSession({
+    ...(workspaceId === undefined ? {} : { workspaceId }),
+    ...(allowedNames === undefined
+      ? {}
+      : { config: { tools: { allowedNames } } }),
+  }).sessionId;
+}
+
+async function handleWorkspace(
+  service: EasyAgentApplication['service'],
+  state: {
+    sessionId: string;
+    workspaceId: string | undefined;
+    allowedNames: string[] | undefined;
+  },
+  command: string,
+  output: Writable,
+  error: Writable,
+): Promise<void> {
+  const parts = command.trim().split(/\s+/);
+  const action = parts[1] ?? 'status';
+  try {
+    if (action === 'status') {
+      const id = parts[2] ?? service.getSessionWorkspaceId(state.sessionId);
+      if (!id) {
+        error.write('当前 Session 未绑定 Workspace。\n');
+        return;
+      }
+      const status = service.getWorkspaceStatus(id);
+      output.write(
+        `${status.name} ${status.id} safety=${status.safety} refs=${status.sessionRefs} root=${status.rootPath}\n`,
+      );
+      return;
+    }
+    if (action === 'list') {
+      const list = service.listWorkspaces();
+      if (list.length === 0) {
+        output.write('(no workspaces)\n');
+        return;
+      }
+      for (const item of list) {
+        const mark =
+          item.id === service.getSessionWorkspaceId(state.sessionId)
+            ? '* '
+            : '  ';
+        output.write(`${mark}${item.name}\t${item.id}\t${item.rootPath}\n`);
+      }
+      return;
+    }
+    if (action === 'register') {
+      const name = parts[2];
+      const path = parts.slice(3).join(' ');
+      if (!name || !path) {
+        error.write('用法：/workspace register <name> <existing-path>\n');
+        return;
+      }
+      const ws = await service.registerWorkspace(name, path);
+      output.write(`[已注册 Workspace ${ws.name} ${ws.id}]\n`);
+      return;
+    }
+    if (action === 'create') {
+      const name = parts[2];
+      const path = parts.slice(3).join(' ');
+      if (!name || !path) {
+        error.write('用法：/workspace create <name> <new-path>\n');
+        return;
+      }
+      const ws = await service.createWorkspace(name, path);
+      output.write(`[已创建 Workspace ${ws.name} ${ws.id}]\n`);
+      return;
+    }
+    if (action === 'use') {
+      const id = parts[2];
+      if (!id) {
+        error.write('用法：/workspace use <id>\n');
+        return;
+      }
+      service.getWorkspaceStatus(id);
+      state.workspaceId = id;
+      state.sessionId = createBoundSession(
+        service,
+        state.workspaceId,
+        state.allowedNames,
+      );
+      output.write(`[已切换至绑定 Workspace ${id} 的新 Session]\n`);
+      return;
+    }
+    if (action === 'recover') {
+      const id = parts[2] ?? service.getSessionWorkspaceId(state.sessionId);
+      if (!id) {
+        error.write('需要 Workspace ID。\n');
+        return;
+      }
+      if (parts[3] !== 'confirm') {
+        error.write('请使用 /workspace recover [id] confirm\n');
+        return;
+      }
+      service.recoverWorkspace(id);
+      output.write(`[Workspace ${id} recovered]\n`);
+      return;
+    }
+    error.write(
+      '用法：/workspace status|list|register|create|use|recover [id] confirm\n',
+    );
+  } catch (cause) {
+    reportFailure(cause, error);
+  }
 }
 
 async function packageVersion(): Promise<string> {
@@ -118,17 +242,35 @@ export async function runCli(
     if (exiting) return 0;
     application = await (options.bootstrap ?? bootstrap)(config);
     if (!exiting) {
-      let sessionId = application.service.createSession().sessionId;
-      output.write(
-        'Easy Agent — /model 模型，/new 新会话，/exit 退出，Ctrl+C 取消当前任务。\n',
+      const state: {
+        sessionId: string;
+        workspaceId: string | undefined;
+        allowedNames: string[] | undefined;
+      } = {
+        sessionId: '',
+        workspaceId: undefined,
+        allowedNames: undefined,
+      };
+      state.sessionId = application.service.createSession().sessionId;
+      state.workspaceId = application.service.getSessionWorkspaceId(
+        state.sessionId,
       );
+      output.write(
+        `Easy Agent — OS=${process.platform} shell=${application.service.getTerminalShell()}\n`,
+      );
+      output.write(
+        '命令：/model、/workspace、/tools、/new、/exit；Ctrl+C 取消当前任务。\n',
+      );
+      if (!state.workspaceId) {
+        output.write(
+          '提示：未配置默认 Workspace。可用 /workspace register|create 后 /workspace use <id>。\n',
+        );
+      }
       const terminal = Boolean(
         'isTTY' in input && input.isTTY && 'isTTY' in output && output.isTTY,
       );
       lines = createInterface({ input, output, terminal });
       lines.on('SIGINT', interrupt);
-      // Create the iterator immediately so piped lines/EOF are retained while
-      // execution is running. This is input buffering, not a second task queue.
       const iterator = lines[Symbol.asyncIterator]();
       while (!exiting) {
         if (terminal) output.write('> ');
@@ -138,13 +280,29 @@ export async function runCli(
         const command = line.trim();
         if (!command) continue;
         if (command === '/exit') break;
-        if (command === '/new') {
-          sessionId = application.service.createSession().sessionId;
-          output.write('[已切换至新 Session]\n');
+        if (command === '/new' || command.startsWith('/new ')) {
+          const id = command === '/new' ? undefined : command.slice(5).trim();
+          if (id) {
+            try {
+              application.service.getWorkspaceStatus(id);
+              state.workspaceId = id;
+            } catch {
+              error.write('Workspace 不存在，Session 未创建。\n');
+              continue;
+            }
+          }
+          state.sessionId = createBoundSession(
+            application.service,
+            state.workspaceId,
+            state.allowedNames,
+          );
+          output.write(
+            `[已切换至新 Session${state.workspaceId ? ` workspace=${state.workspaceId}` : ''}]\n`,
+          );
           continue;
         }
         if (command === '/model') {
-          const current = application.service.getSessionModel(sessionId);
+          const current = application.service.getSessionModel(state.sessionId);
           output.write(
             `${application.service
               .listModels()
@@ -158,28 +316,85 @@ export async function runCli(
         if (command.startsWith('/model ')) {
           const modelId = command.slice('/model '.length).trim();
           try {
-            application.service.setSessionModel(sessionId, modelId);
+            application.service.setSessionModel(state.sessionId, modelId);
             output.write(`[当前模型：${modelId}]\n`);
           } catch {
             error.write('模型未注册或标识无效，当前 Session 模型未改变。\n');
           }
           continue;
         }
+        if (command === '/tools') {
+          output.write(
+            state.allowedNames === undefined
+              ? '[工具] 使用全部已注册工具（下一次 /new 生效）\n'
+              : `[工具] allowedNames=${state.allowedNames.join(',')}\n`,
+          );
+          continue;
+        }
+        if (command.startsWith('/tools ')) {
+          const raw = command.slice('/tools '.length).trim();
+          if (raw === '*' || raw === 'all') {
+            state.allowedNames = undefined;
+            output.write('[工具] 已清除限制；/new 后使用全部已注册工具。\n');
+          } else {
+            state.allowedNames = raw
+              .split(',')
+              .map((name) => name.trim())
+              .filter(Boolean);
+            output.write(
+              `[工具] 下次 /new 将使用：${state.allowedNames.join(', ')}\n`,
+            );
+          }
+          continue;
+        }
+        if (command === '/workspace' || command.startsWith('/workspace ')) {
+          await handleWorkspace(
+            application.service,
+            state,
+            command,
+            output,
+            error,
+          );
+          continue;
+        }
         if (command.startsWith('/')) {
-          error.write('未知交互命令。可使用 /model、/new 或 /exit。\n');
+          error.write(
+            '未知交互命令。可使用 /model、/workspace、/tools、/new 或 /exit。\n',
+          );
           continue;
         }
         try {
-          const execution = application.service.submit(sessionId, line);
-          active = { sessionId, execution };
-          cancelRequested = false;
-          const status = await renderExecution(
-            execution,
+          const ask = async (question: string) => {
+            output.write(question);
+            const answer = await iterator.next();
+            return answer.done ? '' : String(answer.value);
+          };
+          // Open the approval channel before submit to avoid fail-closed races.
+          const stopApprovals = subscribeApprovalPrompts(
+            application.service,
             output,
             error,
-            config.cli.stream,
+            ask,
           );
-          if (status === 'FAILED' || status === 'ERROR') exitCode = 1;
+          try {
+            const execution = application.service.submit(state.sessionId, line);
+            active = { sessionId: state.sessionId, execution };
+            cancelRequested = false;
+            const status = await renderExecution(
+              execution,
+              output,
+              error,
+              config.cli.stream,
+              {
+                service: application.service,
+                ask,
+                approvalSubscriptionActive: true,
+              },
+            );
+            if (status === 'FAILED' || status === 'ERROR') exitCode = 1;
+          } finally {
+            stopApprovals();
+          }
         } catch (cause) {
           reportFailure(cause, error);
           exitCode = 1;

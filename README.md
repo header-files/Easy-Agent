@@ -127,7 +127,7 @@ try {
 }
 ```
 
-默认装配按 `Provider Type → Factory → Instance → Registry → Router` 注入统一 ModelClient，并复用工具、Loop、Engine 和 Manager；注册无外部副作用的 `add({a,b})` 工具，多工具仍由既有 Loop 串行执行。可通过 `providerFactories` 注入离线 Provider，也可替换 Loop/Engine/Manager；外部共享依赖仍归调用方所有。自有 Provider 工厂可返回 `{client, dispose?}`，由 Bootstrap 管理回滚与释放。
+默认装配按 `Provider Type → Factory → Instance → Registry → Router` 注入统一 ModelClient，并复用工具、Loop、Engine 和 Manager；注册内置 FileSystem/Terminal 工具，多工具仍由既有 Loop 串行执行。可通过 `providerFactories` 注入离线 Provider，也可替换 Loop/Engine/Manager 或用 `tools` 注入额外工具；外部共享依赖仍归调用方所有。自有 Provider 工厂可返回 `{client, dispose?}`，由 Bootstrap 管理回滚与释放。
 
 `dispose()` 幂等：先关闭提交入口，取消并等待经本应用 Service 提交的未结算任务，再逆序释放自有资源。取消/清理保持协作边界，不设置隐藏超时或假称任意底层副作用已停止。准确 API、配置和所有权见 [Application](src/application/README.md) 与 [Composition](src/composition/README.md)。
 

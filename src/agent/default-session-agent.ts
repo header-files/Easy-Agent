@@ -30,6 +30,7 @@ import { snapshot } from './snapshots.ts';
 interface SessionOptions {
   context?: AgentLoopContext['context'];
   config?: AgentLoopContext['config'];
+  workspaceId?: string;
   eventBufferCapacity: number;
   executionId: () => string;
   logger?: Logger;
@@ -58,6 +59,7 @@ export class DefaultSessionAgent implements SessionAgent {
   private active: Submission | undefined;
   private pumping = false;
   private closed = false;
+  private readonly workspaceId: string | undefined;
 
   constructor(
     sessionId: string,
@@ -68,10 +70,14 @@ export class DefaultSessionAgent implements SessionAgent {
     this.id = sessionId;
     this.engine = engine;
     this.loop = loop;
+    this.workspaceId = options.workspaceId;
     this.options = {
       eventBufferCapacity: options.eventBufferCapacity,
       executionId: options.executionId,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
+      ...(options.workspaceId === undefined
+        ? {}
+        : { workspaceId: options.workspaceId }),
     };
     this.committed = contextSnapshot(
       options.context === undefined ? { messages: [] } : options.context,
@@ -86,6 +92,9 @@ export class DefaultSessionAgent implements SessionAgent {
   }
   getModel(): string | undefined {
     return this.defaults.model?.name;
+  }
+  getWorkspaceId(): string | undefined {
+    return this.workspaceId;
   }
   setModel(modelId: string): void {
     if (this.closed || typeof modelId !== 'string' || !modelId.trim()) {
@@ -245,7 +254,13 @@ export class DefaultSessionAgent implements SessionAgent {
         context: this.getContext(),
         config: snapshot(submission.config),
         control: { signal: submission.controller.signal },
-        metadata: { sessionId: this.id, executionId: submission.id },
+        metadata: {
+          sessionId: this.id,
+          executionId: submission.id,
+          ...(this.workspaceId === undefined
+            ? {}
+            : { workspaceId: this.workspaceId }),
+        },
       };
       const iterable = this.engine.execute({
         executionId: submission.id,

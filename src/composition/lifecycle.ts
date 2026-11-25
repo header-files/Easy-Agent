@@ -54,6 +54,50 @@ export function manageLifecycle(delegate: AgentApplicationService) {
       check();
       return delegate.cancel(id, executionId);
     },
+    registerWorkspace(name, path) {
+      check();
+      return delegate.registerWorkspace(name, path);
+    },
+    createWorkspace(name, path) {
+      check();
+      return delegate.createWorkspace(name, path);
+    },
+    listWorkspaces() {
+      check();
+      return delegate.listWorkspaces();
+    },
+    getWorkspaceStatus(id) {
+      check();
+      return delegate.getWorkspaceStatus(id);
+    },
+    recoverWorkspace(id) {
+      check();
+      delegate.recoverWorkspace(id);
+    },
+    removeWorkspace(id) {
+      check();
+      return delegate.removeWorkspace(id);
+    },
+    getSessionWorkspaceId(id) {
+      check();
+      return delegate.getSessionWorkspaceId(id);
+    },
+    getTerminalShell() {
+      check();
+      return delegate.getTerminalShell();
+    },
+    listPendingApprovals() {
+      check();
+      return delegate.listPendingApprovals();
+    },
+    decideApproval(id, decision) {
+      check();
+      return delegate.decideApproval(id, decision);
+    },
+    subscribeApprovals(listener) {
+      check();
+      return delegate.subscribeApprovals(listener);
+    },
   };
   return {
     service,

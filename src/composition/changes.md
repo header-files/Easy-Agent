@@ -78,3 +78,29 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 修改原因：应用不读取 `.env`，用户确认清单文件无运行时用途后要求删除。
 - 影响范围：根目录模板、README/Composition/阶段文档链接。
 - 验证：确认无 dotenv、无代码/测试加载 `.env.example`。
+
+### 2026-11-25 — Phase 2.2 Workspace/审批/内置工具装配
+
+- 主题 ID：`composition.workspace-tools-bootstrap`
+- 变更前：仅 Registry + DefaultToolExecutor + demo `add`；无 Workspace/审批配置。
+- 变更后：配置支持 `workspace.path` / `approvalTimeoutMs` 与 `terminal.shell`；Bootstrap 创建 Manager/Coordinator/Approval/TerminalExecutor，注册内置工具并以 `GuardedToolExecutor` 为默认执行器；demo `add` 与 `options.tools` 注入默认 `approval=never`；默认 Session 绑定默认 Workspace。
+- 修改原因：Phase 2.2 要求开箱可用的本地受控工具链，且不复制 Loop/Engine；注入工具缺省 always 会导致无审批通道的离线测试挂死。
+- 影响范围：config、bootstrap、lifecycle、demo-tool、Application 注入。
+- 验证：Bootstrap/配置测试与 `tests/phase-2.2-application.test.ts`；全仓 **280/280** 通过。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-25 — workspace.path 展开 `~/` 并创建缺失父目录
+
+- 主题 ID：`composition.workspace-tools-bootstrap`
+- 变更前：`workspace.path` 中的 `~` 按字面路径使用；`create` 非递归 mkdir，父目录不存在时初始化失败；CLI 对 Bootstrap 失败只打印笼统文案。
+- 变更后：Bootstrap 展开前导 `~/`；仅在 ENOENT 时先创建父目录再 create；CLI 显示 `BootstrapError` 阶段名。
+- 修改原因：本地 `~/.easy-agent/workspace` 导致 chat 启动失败。
+- 验证：对本地配置手工 bootstrap；`typecheck` / `lint`。
+
+### 2026-11-25 — 移除默认演示工具 add
+
+- 主题 ID：`composition.workspace-tools-bootstrap`
+- 变更前：Bootstrap 默认注册纯计算 `add`。
+- 变更后：删除 `demo-tool.ts` 与默认注册；仅保留内置 FileSystem/Terminal；测试通过 `options.tools` 注入所需工具。
+- 修改原因：用户要求去掉演示工具，避免进入真实模型会话的工具列表。
+- 验证：`tests/bootstrap.test.ts`、`tests/phase-1.6-integration.test.ts` 与全仓测试。

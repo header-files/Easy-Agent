@@ -84,7 +84,7 @@ export class DefaultAgentManager implements AgentManager {
       Array.isArray(options)
     )
       throw new Error('Invalid session options.');
-    const { loop: suppliedLoop, context, config } = options;
+    const { loop: suppliedLoop, context, config, workspaceId } = options;
     const loop = suppliedLoop === undefined ? this.defaultLoop : suppliedLoop;
     if (
       (typeof loop !== 'object' && typeof loop !== 'function') ||
@@ -92,6 +92,9 @@ export class DefaultAgentManager implements AgentManager {
       typeof loop.run !== 'function'
     )
       throw new Error('Invalid session loop.');
+    if (workspaceId !== undefined && typeof workspaceId !== 'string') {
+      throw new Error('Invalid workspace id.');
+    }
     const id = this.nextId(this.sessionIdFactory, this.sessionIds);
     const session = new DefaultSessionAgent(id, this.engine, loop, {
       context: context === undefined ? { messages: [] } : context,
@@ -100,6 +103,7 @@ export class DefaultAgentManager implements AgentManager {
       executionId: () =>
         this.nextId(this.executionIdFactory, this.executionIds),
       ...(this.logger === undefined ? {} : { logger: this.logger }),
+      ...(workspaceId === undefined ? {} : { workspaceId }),
     });
     this.sessions.set(id, session);
     return session;

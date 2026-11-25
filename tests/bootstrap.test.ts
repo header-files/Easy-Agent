@@ -226,7 +226,17 @@ test('初始化中途失败逆序回滚Provider；失败消息不泄密', async 
       tools: [
         {
           spec: {
-            name: 'add',
+            name: 'dup',
+            description: 'first',
+            parameters: { type: 'object' },
+          },
+          handler() {
+            return { content: '' };
+          },
+        },
+        {
+          spec: {
+            name: 'dup',
             description: 'duplicate',
             parameters: { type: 'object' },
           },

@@ -5,6 +5,11 @@ import type {
   SessionSummary,
 } from '../harness/contracts/agent/index.ts';
 import type { ModelDescriptor } from '../harness/contracts/model/index.ts';
+import type {
+  ApprovalDecision,
+  ApprovalRequest,
+} from '../runtime/approval/index.ts';
+import type { Workspace, WorkspaceStatus } from '../runtime/workspace/index.ts';
 
 export interface SessionInfo {
   readonly sessionId: string;
@@ -24,6 +29,22 @@ export interface AgentApplicationService {
     options?: SessionSubmitOptions,
   ): SessionExecution;
   cancel(sessionId: string, executionId: string): boolean;
+
+  registerWorkspace(
+    name: string,
+    existingDirectory: string,
+  ): Promise<Workspace>;
+  createWorkspace(name: string, newDirectory: string): Promise<Workspace>;
+  listWorkspaces(): readonly Workspace[];
+  getWorkspaceStatus(workspaceId: string): WorkspaceStatus;
+  recoverWorkspace(workspaceId: string): void;
+  removeWorkspace(workspaceId: string): boolean;
+  getSessionWorkspaceId(sessionId: string): string | undefined;
+  getTerminalShell(): string;
+
+  listPendingApprovals(): readonly ApprovalRequest[];
+  decideApproval(id: string, decision: ApprovalDecision): ApprovalRequest;
+  subscribeApprovals(listener: (request: ApprovalRequest) => void): () => void;
 }
 
 export type AgentApplicationErrorCode =

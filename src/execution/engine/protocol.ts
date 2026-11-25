@@ -181,14 +181,17 @@ export function prepare(request: ExecutionRequest): {
     if (metadata !== undefined && !record(metadata)) return startupError();
     const metadataId = metadata?.executionId;
     const sessionId = metadata?.sessionId;
+    const workspaceId = metadata?.workspaceId;
     if (
       (metadataId !== undefined && metadataId !== executionId) ||
-      (sessionId !== undefined && typeof sessionId !== 'string')
+      (sessionId !== undefined && typeof sessionId !== 'string') ||
+      (workspaceId !== undefined && typeof workspaceId !== 'string')
     )
       return startupError();
     const copiedMetadata = normalized(metadata ?? {}, {
       executionId,
       sessionId,
+      workspaceId,
     });
     if (metadata) replacements.set(metadata, copiedMetadata);
     replacements.set(input, normalized(input, { content }));

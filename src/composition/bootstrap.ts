@@ -17,18 +17,27 @@ import {
   OpenAICompatibleModelClient,
   OpenAIResponsesModelClient,
 } from '../runtime/model/index.ts';
+import { ApprovalService } from '../runtime/approval/index.ts';
 import {
-  DefaultToolExecutor,
   DefaultToolRegistry,
+  GuardedToolExecutor,
+  registerBuiltinTools,
+  TerminalExecutor,
 } from '../runtime/tool/index.ts';
+import {
+  WorkspaceAccessCoordinator,
+  WorkspaceManager,
+} from '../runtime/workspace/index.ts';
 import {
   resolveConfig,
   type EasyAgentConfig,
   type ProviderConfig,
   type ProviderType,
 } from './config.ts';
-import { registerDemoTool } from './demo-tool.ts';
 import { manageLifecycle } from './lifecycle.ts';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 type Awaitable<T> = T | Promise<T>;
 export interface OwnedModelClient {
@@ -161,17 +170,60 @@ export async function bootstrap(
     const modelRegistry = new DefaultModelRegistry(clients, config.models);
     const router = new ModelRouter(modelRegistry);
 
+    stage = 'workspace';
+    const coordinator = new WorkspaceAccessCoordinator();
+    const workspaces = new WorkspaceManager({ coordinator });
+    const approval = new ApprovalService();
+    let defaultWorkspaceId: string | undefined;
+    if (config.workspace?.path) {
+      const workspacePath = expandUserPath(config.workspace.path);
+      try {
+        await fs.access(workspacePath);
+        defaultWorkspaceId = (
+          await workspaces.register('default', workspacePath)
+        ).id;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        // create() uses non-recursive mkdir; ensure parent exists for ~/… paths.
+        await fs.mkdir(path.dirname(workspacePath), { recursive: true });
+        defaultWorkspaceId = (await workspaces.create('default', workspacePath))
+          .id;
+      }
+    }
+    const terminal = new TerminalExecutor(
+      config.terminal?.shell === undefined
+        ? {}
+        : { shell: config.terminal.shell },
+    );
+
     let manager = options.manager;
     if (manager === undefined) {
       let loop = options.loop;
       if (loop === undefined) {
         stage = 'tools';
         const registry = new DefaultToolRegistry();
-        registerDemoTool(registry);
+        registerBuiltinTools(registry, {
+          manager: workspaces,
+          coordinator,
+          terminal,
+        });
         for (const { spec, handler } of options.tools ?? []) {
-          registry.register(spec, handler);
+          // Explicit bootstrap injections are developer-owned; default never/none
+          // so offline tests and custom tools are not stuck without an approval UI.
+          // Builtins register their own meta; unknown production tools should set always.
+          registry.register(spec, handler, {
+            approval: 'never',
+            workspaceAccess: 'none',
+          });
         }
-        const executor = new DefaultToolExecutor(registry, { logger });
+        const executor = new GuardedToolExecutor(registry, {
+          logger,
+          approval,
+          coordinator,
+          ...(config.workspace?.approvalTimeoutMs === undefined
+            ? {}
+            : { approvalTimeoutMs: config.workspace.approvalTimeoutMs }),
+        });
         stage = 'loop';
         loop = new DefaultAgentLoop(router, registry, executor);
       }
@@ -183,6 +235,11 @@ export async function bootstrap(
     stage = 'application';
     const delegate = new DefaultAgentApplicationService(manager, {
       modelCatalog: modelRegistry,
+      workspaces,
+      coordinator,
+      approval,
+      terminalShell: terminal.getShell(),
+      ...(defaultWorkspaceId === undefined ? {} : { defaultWorkspaceId }),
       defaultSessionOptions: {
         config: {
           model: { name: config.defaultModel },
@@ -190,6 +247,9 @@ export async function bootstrap(
             defaultAgentLoop: { maxModelRetries: config.agent.maxModelRetries },
           },
         },
+        ...(defaultWorkspaceId === undefined
+          ? {}
+          : { workspaceId: defaultWorkspaceId }),
       },
     });
     const lifecycle = manageLifecycle(delegate);
@@ -222,4 +282,14 @@ export async function bootstrap(
     }
     throw error;
   }
+}
+
+/** Expand leading `~` / `~/` to the current user home; leave other paths unchanged. */
+function expandUserPath(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed === '~') return os.homedir();
+  if (trimmed.startsWith('~/') || trimmed.startsWith('~' + path.sep)) {
+    return path.join(os.homedir(), trimmed.slice(2));
+  }
+  return trimmed;
 }

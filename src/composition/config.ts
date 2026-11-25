@@ -24,6 +24,13 @@ export interface EasyAgentConfig {
   agent: { maxModelRetries: number };
   cli: { stream: boolean };
   logging: { level: LogLevel };
+  workspace?: {
+    path?: string;
+    approvalTimeoutMs?: number;
+  };
+  terminal?: {
+    shell?: string;
+  };
 }
 
 export interface EasyAgentConfigInput {
@@ -33,6 +40,8 @@ export interface EasyAgentConfigInput {
   agent?: Partial<EasyAgentConfig['agent']>;
   cli?: Partial<EasyAgentConfig['cli']>;
   logging?: Partial<EasyAgentConfig['logging']>;
+  workspace?: EasyAgentConfig['workspace'];
+  terminal?: EasyAgentConfig['terminal'];
 }
 
 export class ConfigurationError extends Error {
@@ -220,6 +229,8 @@ export function resolveConfig(
     let agent: Record<string, unknown> = { maxModelRetries: 2 };
     let cli: Record<string, unknown> = { stream: true };
     let logging: Record<string, unknown> = { level: 'info' };
+    let workspace: Record<string, unknown> = {};
+    let terminal: Record<string, unknown> = {};
     for (const source of sources) {
       const root = section(source, [
         'providers',
@@ -228,6 +239,8 @@ export function resolveConfig(
         'agent',
         'cli',
         'logging',
+        'workspace',
+        'terminal',
       ]);
       if (root.providers !== undefined) providerSource = root.providers;
       if (root.models !== undefined) modelSource = root.models;
@@ -235,6 +248,11 @@ export function resolveConfig(
       agent = { ...agent, ...section(root.agent, ['maxModelRetries']) };
       cli = { ...cli, ...section(root.cli, ['stream']) };
       logging = { ...logging, ...section(root.logging, ['level']) };
+      workspace = {
+        ...workspace,
+        ...section(root.workspace, ['path', 'approvalTimeoutMs']),
+      };
+      terminal = { ...terminal, ...section(root.terminal, ['shell']) };
     }
     const resolvedProviders = providers(providerSource, env);
     const resolvedModels = models(modelSource, resolvedProviders);
@@ -258,6 +276,26 @@ export function resolveConfig(
     ) {
       invalid('logging.level');
     }
+    if (
+      workspace.path !== undefined &&
+      (typeof workspace.path !== 'string' || workspace.path.trim().length === 0)
+    ) {
+      invalid('workspace.path');
+    }
+    if (
+      workspace.approvalTimeoutMs !== undefined &&
+      (typeof workspace.approvalTimeoutMs !== 'number' ||
+        !Number.isSafeInteger(workspace.approvalTimeoutMs) ||
+        workspace.approvalTimeoutMs <= 0)
+    ) {
+      invalid('workspace.approvalTimeoutMs');
+    }
+    if (
+      terminal.shell !== undefined &&
+      (typeof terminal.shell !== 'string' || terminal.shell.trim().length === 0)
+    ) {
+      invalid('terminal.shell');
+    }
     return {
       providers: resolvedProviders,
       models: resolvedModels,
@@ -265,6 +303,24 @@ export function resolveConfig(
       agent: { maxModelRetries: agent.maxModelRetries },
       cli: { stream: cli.stream },
       logging: { level: logging.level as LogLevel },
+      ...(workspace.path === undefined &&
+      workspace.approvalTimeoutMs === undefined
+        ? {}
+        : {
+            workspace: {
+              ...(workspace.path === undefined
+                ? {}
+                : { path: workspace.path as string }),
+              ...(workspace.approvalTimeoutMs === undefined
+                ? {}
+                : {
+                    approvalTimeoutMs: workspace.approvalTimeoutMs as number,
+                  }),
+            },
+          }),
+      ...(terminal.shell === undefined
+        ? {}
+        : { terminal: { shell: terminal.shell as string } }),
     };
   } catch (error) {
     if (error instanceof ConfigurationError) throw error;

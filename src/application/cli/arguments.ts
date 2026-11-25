@@ -25,8 +25,11 @@ export const help = `用法：easy-agent chat [选项]
 配置优先级：CLI > 环境变量 > 配置文件 > 默认值。
 环境变量：EASY_AGENT_DEFAULT_MODEL、EASY_AGENT_MAX_MODEL_RETRIES、
           EASY_AGENT_STREAM、LOG_LEVEL；Provider 字段可引用 \${ENV_NAME}。
-交互命令：/model 查看或切换模型，/new 新建并切换 Session，
-          /exit 退出，Ctrl+C 取消当前任务。
+交互命令：/model 查看或切换模型；
+          /workspace status|list|register|create|use|recover；
+          /tools [name,...|all] 选择下次 /new 的工具集合；
+          /new [workspaceId] 新建 Session，/exit 退出，Ctrl+C 取消当前任务。
+写文件与 Terminal 默认需要审批；Terminal 不是强文件系统沙箱。
 Session 仅保存在本次进程内存中。
 `;
 

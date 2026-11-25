@@ -11,6 +11,17 @@ import type {
   ModelCatalog,
   ModelDescriptor,
 } from '../harness/contracts/model/index.ts';
+import type {
+  ApprovalDecision,
+  ApprovalRequest,
+  ApprovalService,
+} from '../runtime/approval/index.ts';
+import type {
+  Workspace,
+  WorkspaceAccessCoordinator,
+  WorkspaceManager,
+  WorkspaceStatus,
+} from '../runtime/workspace/index.ts';
 import {
   AgentApplicationError,
   type AgentApplicationService,
@@ -21,6 +32,11 @@ export interface DefaultAgentApplicationServiceOptions {
   modelCatalog: ModelCatalog;
   /** Bootstrap-owned defaults; do not mutate them during the service lifetime. */
   defaultSessionOptions?: CreateSessionOptions;
+  workspaces?: WorkspaceManager;
+  coordinator?: WorkspaceAccessCoordinator;
+  approval?: ApprovalService;
+  terminalShell?: string;
+  defaultWorkspaceId?: string;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -134,6 +150,11 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
   private readonly manager: AgentManager;
   private readonly models: ModelCatalog;
   private readonly defaults: CreateSessionOptions;
+  private readonly workspaces: WorkspaceManager | undefined;
+  private readonly coordinator: WorkspaceAccessCoordinator | undefined;
+  private readonly approval: ApprovalService | undefined;
+  private readonly terminalShell: string;
+  private readonly defaultWorkspaceId: string | undefined;
 
   constructor(
     manager: AgentManager,
@@ -158,6 +179,11 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     this.manager = manager;
     this.models = options.modelCatalog;
     this.defaults = options.defaultSessionOptions ?? {};
+    this.workspaces = options.workspaces;
+    this.coordinator = options.coordinator;
+    this.approval = options.approval;
+    this.terminalShell = options.terminalShell ?? '';
+    this.defaultWorkspaceId = options.defaultWorkspaceId;
   }
 
   createSession(options?: CreateSessionOptions): SessionInfo {
@@ -165,12 +191,23 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     const modelId =
       options?.config?.model?.name ?? this.defaults.config?.model?.name;
     if (modelId !== undefined && !this.models.has(modelId)) invalid();
+    const workspaceId =
+      options?.workspaceId ??
+      this.defaults.workspaceId ??
+      this.defaultWorkspaceId;
+    if (workspaceId !== undefined) {
+      if (!this.workspaces?.get(workspaceId)) invalid();
+    }
     try {
       const session = this.manager.createSession({
         ...this.defaults,
         ...options,
+        ...(workspaceId === undefined ? {} : { workspaceId }),
         config: mergeConfig(this.defaults.config, options?.config),
       });
+      if (workspaceId !== undefined) {
+        this.workspaces?.bindSession(workspaceId, session.sessionId);
+      }
       return Object.freeze({ sessionId: session.sessionId });
     } catch {
       throw new AgentApplicationError('operation_failed');
@@ -220,9 +257,14 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
   }
 
   async deleteSession(sessionId: string): Promise<boolean> {
-    this.session(sessionId);
+    const session = this.session(sessionId);
+    const workspaceId = session.getWorkspaceId?.();
     try {
-      return await this.manager.deleteSession(sessionId);
+      const removed = await this.manager.deleteSession(sessionId);
+      if (removed && workspaceId !== undefined) {
+        this.workspaces?.unbindSession(workspaceId, sessionId);
+      }
+      return removed;
     } catch {
       throw new AgentApplicationError('operation_failed');
     }
@@ -258,6 +300,95 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     } catch {
       throw new AgentApplicationError('operation_failed');
     }
+  }
+
+  async registerWorkspace(
+    name: string,
+    existingDirectory: string,
+  ): Promise<Workspace> {
+    if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    try {
+      return await this.workspaces.register(name, existingDirectory);
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  async createWorkspace(
+    name: string,
+    newDirectory: string,
+  ): Promise<Workspace> {
+    if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    try {
+      return await this.workspaces.create(name, newDirectory);
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  listWorkspaces(): readonly Workspace[] {
+    if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    try {
+      return this.workspaces.list();
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  getWorkspaceStatus(workspaceId: string): WorkspaceStatus {
+    validId(workspaceId);
+    if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    try {
+      return this.workspaces.status(workspaceId);
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  recoverWorkspace(workspaceId: string): void {
+    validId(workspaceId);
+    if (!this.coordinator || !this.workspaces?.get(workspaceId)) {
+      throw new AgentApplicationError('operation_failed');
+    }
+    this.coordinator.recover(workspaceId);
+  }
+
+  removeWorkspace(workspaceId: string): boolean {
+    validId(workspaceId);
+    if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    try {
+      return this.workspaces.remove(workspaceId);
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  getSessionWorkspaceId(sessionId: string): string | undefined {
+    return this.session(sessionId).getWorkspaceId?.();
+  }
+
+  getTerminalShell(): string {
+    return this.terminalShell;
+  }
+
+  listPendingApprovals(): readonly ApprovalRequest[] {
+    if (!this.approval) throw new AgentApplicationError('operation_failed');
+    return this.approval.listPending();
+  }
+
+  decideApproval(id: string, decision: ApprovalDecision): ApprovalRequest {
+    validId(id);
+    if (!this.approval) throw new AgentApplicationError('operation_failed');
+    try {
+      return this.approval.decide(id, decision);
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  subscribeApprovals(listener: (request: ApprovalRequest) => void): () => void {
+    if (!this.approval) throw new AgentApplicationError('operation_failed');
+    return this.approval.subscribe(listener);
   }
 
   private session(sessionId: string): SessionAgent {

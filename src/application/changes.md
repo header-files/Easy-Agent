@@ -59,3 +59,28 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 影响范围：Application Service、lifecycle 转发、CLI、离线测试。
 - 验证：`tests/agent-application-service.test.ts` 与 CLI/集成回归通过。
 - 现行说明：[README.md](README.md)、[CLI README](cli/README.md)。
+
+### 2026-11-25 — Phase 2.2 Application/CLI Workspace 与审批闭环
+
+- 主题 ID：`application.workspace-approval`
+- 变更前：Service 无 Workspace/审批 API；CLI 只渲染 `output_delta`，无法交互批准工具。
+- 变更后：Service 增加 Workspace CRUD/状态/recover、Session Workspace 查询、审批 list/decide/subscribe 与 Terminal Shell 查询；创建 Session 可绑定默认或显式 Workspace。CLI 展示 OS/Shell，支持 `/workspace`，并在 `renderExecution` 中通过共享输入 `ask` 完成审批（无通道则拒绝）。
+- 修改原因：Phase 2.2 要求内置写工具与 Terminal 经 Application 决策，且不把审批挂在 Engine 状态机上。
+- 影响范围：Application Service、lifecycle、CLI、Composition 注入、离线测试。
+- 验证：`tests/phase-2.2-application.test.ts`；完整回归见 Phase 2.2 验收。
+- 现行说明：[README.md](README.md)、[CLI README](cli/README.md)。
+
+### 2026-11-25 — CLI 审批展示与 Runtime 二次修补对齐
+
+- 主题 ID：`application.workspace-approval`
+- 变更前：审批 UI 截断 command/path 且可能打印敏感正文。
+- 变更后：全文展示可批准的 command/path，敏感键脱敏；细节见 [CLI changes](cli/changes.md)。
+- 修改原因：与 Runtime 原子写入/深冻结修补同一轮二次验收。
+- 验证：见 Phase 2.2 §14 与 CLI 子模块记录。
+
+### 2026-11-25 — Terminal command 展示脱敏决策
+
+- 主题 ID：`application.workspace-approval`
+- 变更前：`command` 原文完整输出。
+- 变更后：启发式脱敏展示 + `argsHash`；见 [CLI changes](cli/changes.md) 与 Phase 2.2 §14 设计例外表。
+- 修改原因：三次复查要求明确取舍。

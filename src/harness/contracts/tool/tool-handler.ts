@@ -2,6 +2,9 @@ export interface ToolExecutionContext {
   toolCallId: string;
   /** Cooperative cancellation; it does not imply side effects were rolled back. */
   signal: AbortSignal;
+  workspaceId?: string;
+  sessionId?: string;
+  executionId?: string;
 }
 
 export interface ToolHandlerOutput {

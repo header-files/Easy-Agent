@@ -10,16 +10,19 @@
 
 `resolveConfig({ fileConfig?, env?, overrides? })` 是纯函数；`loadConfig({ filePath?, env?, overrides? })` 异步读取显式指定的 JSON 文件，默认在此边界读取 `process.env`。不自动查找配置、不加载 `.env`。优先级：**overrides（CLI） > env > 文件 > 默认值**。参数按键合并，其嵌套值整体替换，返回独立 JSON 数据。
 
-| 配置                     | 环境变量                       | 默认值 / 规则                                                         |
-| ------------------------ | ------------------------------ | --------------------------------------------------------------------- |
-| `providers.<id>.type`    | —                              | 必填协议实现：`openai-compatible` 或 `openai-responses`（不是厂商名） |
-| `providers.<id>.baseURL` | 可用 `${ENV}` 整串引用         | **必填**；由用户显式填写，代码不预设厂商地址                          |
-| `providers.<id>.apiKey`  | 可用 `${ENV}` 整串引用         | Compatible 可选；Responses 必填                                       |
-| `models`                 | —                              | 必填显式列表，格式 `providerId/modelId`                               |
-| `defaultModel`           | `EASY_AGENT_DEFAULT_MODEL`     | 必须已在 `models` 中注册                                              |
-| `agent.maxModelRetries`  | `EASY_AGENT_MAX_MODEL_RETRIES` | `2`                                                                   |
-| `cli.stream`             | `EASY_AGENT_STREAM`            | `true`                                                                |
-| `logging.level`          | `LOG_LEVEL`                    | `info`                                                                |
+| 配置                          | 环境变量                       | 默认值 / 规则                                                          |
+| ----------------------------- | ------------------------------ | ---------------------------------------------------------------------- |
+| `providers.<id>.type`         | —                              | 必填协议实现：`openai-compatible` 或 `openai-responses`（不是厂商名）  |
+| `providers.<id>.baseURL`      | 可用 `${ENV}` 整串引用         | **必填**；由用户显式填写，代码不预设厂商地址                           |
+| `providers.<id>.apiKey`       | 可用 `${ENV}` 整串引用         | Compatible 可选；Responses 必填                                        |
+| `models`                      | —                              | 必填显式列表，格式 `providerId/modelId`                                |
+| `defaultModel`                | `EASY_AGENT_DEFAULT_MODEL`     | 必须已在 `models` 中注册                                               |
+| `agent.maxModelRetries`       | `EASY_AGENT_MAX_MODEL_RETRIES` | `2`                                                                    |
+| `cli.stream`                  | `EASY_AGENT_STREAM`            | `true`                                                                 |
+| `logging.level`               | `LOG_LEVEL`                    | `info`                                                                 |
+| `workspace.path`              | —                              | 可选默认 Workspace 根目录；存在则 register，否则 create；支持前导 `~/` |
+| `workspace.approvalTimeoutMs` | —                              | 可选审批等待上限（与 toolTimeout 独立）                                |
+| `terminal.shell`              | —                              | 可选覆盖默认 Shell（POSIX `/bin/sh`，Windows `ComSpec`→`cmd.exe`）     |
 
 Provider ID 只表示配置实例身份，**不能**决定协议实现；实现由 `type` 选择。模型标识按第一个 `/` 拆分，上游 Model ID 可继续含 `/`。未知 `type`、未知 Provider、重复模型、未注册默认模型、非法 URL/密钥在启动时拒绝。不保留 Phase 1 单 `model` 配置兼容层。
 
@@ -58,7 +61,7 @@ try {
 
 同一协议 type 可按不同 Provider ID + 各自 `baseURL`/`apiKey` 创建独立实例（例如 OpenAI、Qwen、DeepSeek 都用 `openai-compatible`，只改地址与密钥）。Router 按完整模型标识路由，并向 Provider 发送去掉 Provider ID 后的上游 Model ID。Application 默认 Session 模型为 `config.defaultModel`。
 
-默认仅注册纯计算工具 `add({a,b})`，无网络、文件或命令执行；多工具执行继续由默认 Loop 串行完成。`bootstrap(config, options)` 可注入 `providerFactories`、`loop`、`engine`、`manager`、`logger`，或用 `tools` 注册额外 ToolSpec/Handler。注入上层组件时跳过它覆盖的下层默认创建；无复杂容器或热插拔体系。
+默认注册内置 FileSystem/Terminal 工具；多工具执行继续由默认 Loop 串行完成。Bootstrap 装配 `WorkspaceManager`、`WorkspaceAccessCoordinator`、`ApprovalService` 与 `GuardedToolExecutor`（校验→审批→锁→Handler；审批不计入 toolTimeout）。配置了 `workspace.path` 时创建默认 Workspace 并在新建 Session 时绑定。`bootstrap(config, options)` 可注入 `providerFactories`、`loop`、`engine`、`manager`、`logger`，或用 `tools` 注册额外 ToolSpec/Handler（注入工具默认 `approval=never`）。注入上层组件时跳过它覆盖的下层默认创建；无复杂容器或热插拔体系。
 
 离线测试可直接：
 
@@ -85,7 +88,6 @@ bootstrap(config, {
 
 - [config.ts](config.ts)、[load-config.ts](load-config.ts)：优先级、校验和显式文件读取。
 - [bootstrap.ts](bootstrap.ts)：工厂映射、Registry/Router 装配与所有权；[lifecycle.ts](lifecycle.ts)：Service 关闭门及活跃句柄收尾。
-- [demo-tool.ts](demo-tool.ts)：纯计算演示工具。
 - [配置测试](../../tests/composition-config.test.ts)、[装配测试](../../tests/bootstrap.test.ts)：离线优先级、装配、失败回滚、自有资源、幂等/重入及协作清理。
 
-执行 `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test`。阶段验收见 [Phase 2.1](../../docs/phase-2.1.md)，历史决策见 [changes.md](changes.md)。HTTP Server、Session Event Log、持久化恢复、Provider 热更新及后续能力未实现。
+执行 `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test`。阶段验收见 [Phase 2.2](../../docs/phase-2.2.md)，历史决策见 [changes.md](changes.md)。HTTP Server、Session Event Log、持久化恢复、Provider 热更新、Docker/OS 沙箱及后续能力未实现。

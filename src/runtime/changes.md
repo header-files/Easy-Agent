@@ -88,3 +88,12 @@ Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追
 - 修改原因：Phase 2.1。
 - 依据/验证：见 [Model 时间线](model/changes.md)。
 - 现行说明：[Model README](model/README.md)。
+
+### 2026-11-25 — Phase 2.2 Workspace / Approval / 内置工具
+
+- 主题 ID：`runtime.workspace-tools-approval`
+- 变更前：Runtime 无 Workspace/Approval 子域；Tool 仅有 DefaultToolExecutor 与 demo 级用法。
+- 变更后：新增 workspace、approval 能力域；Tool 增加 GuardedToolExecutor、注册元数据与 FileSystem/Terminal 内置工具。
+- 修改原因：Phase 2.2 本地受控执行。
+- 影响范围：Runtime 父说明及子模块；详见各子模块 changes。
+- 现行说明：[README.md](README.md)、[Workspace](workspace/README.md)、[Approval](approval/README.md)、[Tool](tool/README.md)。

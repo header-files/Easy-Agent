@@ -1,11 +1,11 @@
 ---
-description: Easy Agent project-wide architecture, current Phase 2.1 and change history policy
+description: Easy Agent project-wide architecture, Phase 2.2 complete, change history policy
 alwaysApply: true
 ---
 
-这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-2.1.md`**，需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
+这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-2.2.md`**（含 §14 本机验收），需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
 
-**当前仅执行 Phase 2.1 多模型与 Provider 管理，唯一阶段依据为 `docs/phase-2.1.md`。** 复用 Phase 1 公共契约与执行能力；用 Providers + Models + DefaultModel、Registry/Router 和静态 `Provider Type → Factory` 替换旧单模型配置/装配，不维护兼容层。模型选择优先级为 Execution > Session > Application，并在提交时固化。CLI 通过 `/model` 列表与切换；新增 OpenAI Responses Provider，不依赖 `previous_response_id` / Conversations。保持 submit 同步入队、同 Session FIFO、不同 Session 并发、成功上下文提交以及事件观察/最终结果独立的既有语义，不重新实现 Loop、Engine 或调度。完成本阶段后停止，不自动进入 Phase 2.2。
+**Phase 2.2 已在本机（darwin）完成：内置 FileSystem/Terminal、Workspace、审批与 CLI 闭环。** 未获用户明确授权前不要进入 Phase 2.3；仅做已授权范围内的修复与文档维护。Windows/Linux 原生验收标为未验证。复用 Phase 1 ToolRegistry/ToolExecutor、Loop/Engine/Session FIFO 与 Phase 2.1 多模型装配；不新增 Tool Permission ACL；审批独立于工具超时；Workspace 锁由 Runtime 统一协调；Terminal 清理不确定时先置 UNSAFE 再释放锁；文件工具不得通过符号链接访问。
 
 运行日志统一使用 `src/runtime/logging` 的 Logger 门面、结构化字段和 stderr；涉及日志先读其 README/changes。不直接依赖 Pino，不记录密钥、完整消息或请求/响应正文；Model/Tool 生命周期日志遵循各能力域的字段白名单，不记录原始参数、工具结果或异常载荷。文件轮转、远端服务、Session 事件与 trace 系统不在当前范围。
 

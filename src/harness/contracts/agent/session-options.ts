@@ -7,6 +7,8 @@ export interface CreateSessionOptions {
   /** Initial committed context; defaults to { messages: [] }. */
   context?: AgentLoopContext['context'];
   config?: AgentLoopContext['config'];
+  /** Bound at creation; sessions do not switch workspace afterward. */
+  workspaceId?: string;
 }
 
 /** Partial per-submission override; Loop selection remains fixed for the session. */

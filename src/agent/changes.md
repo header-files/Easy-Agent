@@ -60,3 +60,13 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 影响范围：DefaultSessionAgent、Harness SessionAgent 契约与相关测试；FIFO/取消/上下文语义不变。
 - 验证：Application 模型优先级测试与全仓回归通过。
 - 现行说明：[README.md](README.md)。
+
+### 2026-11-25 — Session 绑定 Workspace
+
+- 主题 ID：`agent.session-workspace`
+- 变更前：Session 无 Workspace 关联；工具上下文不携带 workspaceId。
+- 变更后：创建选项与 SessionAgent 支持 `workspaceId`（创建后不可切换）；提交时写入 Execution metadata，供 Loop/Tool 使用；提供 `getWorkspaceId`。
+- 修改原因：Phase 2.2 要求 Session 绑定 Workspace，工具在绑定时固化身份。
+- 影响范围：DefaultSessionAgent、DefaultAgentManager、Harness Session 契约；FIFO/取消/上下文语义不变。
+- 验证：Application Workspace 集成测试与全仓回归。
+- 现行说明：[README.md](README.md)。

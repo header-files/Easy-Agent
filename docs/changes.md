@@ -279,3 +279,62 @@
 - 修改原因：运行时从不读取该文件，用户要求删除后补齐文档一致。
 - 影响范围：根 README、Composition / CLI 说明、`docs/conventions.md`、`docs/phase-0.md`、`docs/phase-2.1.md`。
 - 模块记录：[Composition](../src/composition/changes.md)。
+
+### 2026-11-25 — Phase 2.2 内置工具 / Workspace / 审批
+
+- 主题 ID：`runtime.workspace-tools-approval`
+- 变更前：仅有 demo `add` 与 DefaultToolExecutor；无 Workspace 锁、审批门控或 FileSystem/Terminal 内置工具。
+- 变更后：Runtime 新增 WorkspaceManager/AccessCoordinator/PathResolver、ApprovalService、GuardedToolExecutor（审批与 toolTimeout 分离）、FileSystem/Terminal 内置工具；Application/CLI 提供 Workspace 与审批闭环；Composition 装配默认 Workspace 与工具链。不改 Loop/Engine/FIFO 公共语义，不加 `WAITING_APPROVAL` 状态，不实现 Docker/OS 沙箱或 Tool Permission ACL。
+- 修改原因：用户授权 Phase 2.2，要求本地受控读写与终端执行能力。
+- 影响范围：Runtime workspace/approval/tool、Harness Tool 执行选项最小扩展、Agent Session `workspaceId`、Application/CLI、Composition；完成后停止，不进入 Phase 2.3。
+- 模块记录：[Runtime Workspace](../src/runtime/workspace/changes.md)、[Runtime Approval](../src/runtime/approval/changes.md)、[Runtime Tool](../src/runtime/tool/changes.md)、[Composition](../src/composition/changes.md)、[Application](../src/application/changes.md)、[CLI](../src/application/cli/changes.md)、[Agent](../src/agent/changes.md)。
+- 实际验证：2026-11-25，本机 darwin 上 `npm run typecheck` / `lint` / `format:check` / `test` 全部通过，**280/280** 离线测试通过；Windows/Linux 原生环境标为未验证（见 [Phase 2.2 §14](phase-2.2.md)）。
+- 现行规范：[Phase 2.2](phase-2.2.md)、[路线图](roadmap.md)。
+
+### 2026-11-25 — Phase 2.2 锁/审批/路径竞态修补
+
+- 主题 ID：`runtime.workspace-tools-approval`
+- 变更前：超时可提前放锁；Terminal 未等待终止；无审批订阅者可能挂起；`write_file` 存在覆盖竞态；CLI 缺少 Workspace/工具选择与充分审批展示。
+- 变更后：锁持有至 Handler 结束或宽限+UNSAFE；Terminal 等待清理；无订阅者立即 unavailable；FS `O_EXCL`/`O_NOFOLLOW`；CLI `register/create/use/tools` 与增强审批展示。设计例外写入 [Phase 2.2 §14](phase-2.2.md)。
+- 修改原因：验收复现的并发与故障关闭缺口。
+- 模块记录：[Tool](../src/runtime/tool/changes.md)、[Approval](../src/runtime/approval/changes.md)、[CLI](../src/application/cli/changes.md)。
+- 验证：全仓 **283/283** 通过（含 `workspace-lock-hold`）。
+
+### 2026-11-25 — Phase 2.2 二次验收：原子写 / 深冻结 / 展示
+
+- 主题 ID：`runtime.workspace-tools-approval`
+- 变更前：覆盖可能 `O_TRUNC` 毁原文件；审批参数仅浅冻结；无 `O_NOFOLLOW` 静默降级；审批 UI 截断可批准内容并可能打印敏感正文；`format:check` 与 §14 测试计数不一致。
+- 变更后：临时文件 + `rename` 覆盖；`structuredClone`+深冻结；路径逐组件校验失败关闭；CLI 全文 command/path 与敏感键脱敏；文档计数与已知残留 TOCTOU/Windows 未原生验对齐。
+- 修改原因：二次复查仍阻塞「完全验收」的正确性与安全缺口。
+- 模块记录：[Tool](../src/runtime/tool/changes.md)、[Approval](../src/runtime/approval/changes.md)、[CLI](../src/application/cli/changes.md)、[Application](../src/application/changes.md)。
+- 验证：见 [Phase 2.2 §14](phase-2.2.md)。
+
+### 2026-11-25 — Phase 2.2 三次修补：list 越界与 command 脱敏
+
+- 主题 ID：`runtime.workspace-tools-approval`
+- 变更前：`list_directory` 打开句柄后仍按路径 `readdir`，可被换成区外符号链接并返回区外条目；审批完整打印 `terminal.command`。
+- 变更后：枚举前后/子项前后做目录 inode 身份校验失败关闭；CLI 对 command 启发式脱敏并保留 `argsHash` 权威绑定。
+- 修改原因：三次复查可复现越界；明确「可审阅命令 vs 敏感信息」取舍。
+- 模块记录：[Tool](../src/runtime/tool/changes.md)、[CLI](../src/application/cli/changes.md)。
+- 验证：见 [Phase 2.2 §14](phase-2.2.md)。
+
+### 2026-11-25 — 审批 Authorization 脱敏收窄
+
+- 主题 ID：`application.local-cli`
+- 变更前：过宽的 Authorization 正则可隐藏 `&& rm ...` 等后续命令。
+- 变更后：仅脱敏单个凭证 token；后续 Shell 语法必须仍可见。
+- 模块记录：[CLI](../src/application/cli/changes.md)。
+
+### 2026-11-25 — 脱敏元字符截断与 Terminal 进程组等待
+
+- 主题 ID：`runtime.workspace-tools-approval`
+- 变更前：`\S+` 仍吞无空格 `&&`/`;`/`|`；Shell exit 即成功，后台任务可在放锁后写文件。
+- 变更后：凭证字符类避开 Shell 元字符；POSIX Terminal 在返回前等待进程组空闲（超时则杀组 / UNSAFE）。
+- 模块记录：[CLI](../src/application/cli/changes.md)、[Tool](../src/runtime/tool/changes.md)。
+
+### 2026-11-25 — 移除默认演示工具 add
+
+- 主题 ID：`composition.workspace-tools-bootstrap`
+- 变更前：Bootstrap 默认注册纯计算 `add`。
+- 变更后：删除演示工具；默认仅内置 FileSystem/Terminal。
+- 模块记录：[Composition](../src/composition/changes.md)。

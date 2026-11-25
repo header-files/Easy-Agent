@@ -31,3 +31,56 @@
 - 修改原因：仓库已删除未使用的 `.env.example`，文档需一致。
 - 影响范围：本子模块 README；行为不变。
 - 关联：[Composition](../../composition/changes.md)、[docs/changes.md](../../../docs/changes.md)。
+
+### 2026-11-25 — CLI Workspace 与审批交互
+
+- 主题 ID：`application.local-cli`
+- 变更前：无 `/workspace`；执行渲染不处理审批。
+- 变更后：启动展示 OS/Shell；`/workspace status|list|recover`；`renderExecution` 订阅审批并通过共享 readline `ask` 决策（无通道则拒绝）。
+- 修改原因：Phase 2.2 要求本地闭环可查看 Workspace 并批准写工具/Terminal。
+- 影响范围：run-cli、render-execution、arguments 帮助文案与集成测试。
+- 验证：`tests/phase-2.2-application.test.ts`、`tests/cli.test.ts`。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-25 — CLI 选择能力与审批展示加固
+
+- 主题 ID：`application.local-cli`
+- 变更前：`/new` 仅默认 Session；`/workspace` 无 register/create/use；审批只截断 args 前 200 字符；submit 后再订阅可能竞态失败关闭。
+- 变更后：`/workspace register|create|use`、`/new [workspaceId]`、`/tools`；submit 前 `subscribeApprovalPrompts`；审批展示 workspace/shell/cwd/command/path 与 argsHash。
+- 修改原因：验收问题 5/6。
+- 验证：`tests/phase-2.2-application.test.ts`。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-25 — 审批展示全文与敏感字段脱敏
+
+- 主题 ID：`application.local-cli`
+- 变更前：`command`/`path` 截断后仍可批准完整操作；`otherArgs` 直接打印可能含正文/口令。
+- 变更后：`command`/`path` 全文；`content`/`oldText`/`newText`/口令类键只显示长度类型摘要；其余有界摘要。
+- 修改原因：二次验收——展示与可批准内容不一致、敏感参数泄露。
+- 验证：定向 lint/format；行为见 `render-execution.ts`。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-25 — Terminal command 展示启发式脱敏
+
+- 主题 ID：`application.local-cli`
+- 变更前：`command` 原文完整打印，含令牌/口令时泄露到终端。
+- 变更后：展示侧对常见 `Authorization`/`Bearer`/`password=`/令牌形态做启发式脱敏，保留可审阅结构与 `commandChars`；`argsHash` 与执行仍用完整冻结参数。非完备秘密检测。
+- 修改原因：三次复查——完整待批准命令 vs 敏感信息保护需明确取舍。
+- 验证：`tests/filesystem-tools.test.ts` 中 `redactCommandForDisplay` 用例。
+- 现行说明：[README.md](README.md)；决策见 [Phase 2.2 §14](../../../docs/phase-2.2.md)。
+
+### 2026-11-25 — Authorization 脱敏收窄为单 token
+
+- 主题 ID：`application.local-cli`
+- 变更前：`Authorization\s*:\s*[^"'\s]+(?:\s+[^"'\s]+)*` 过宽，会吞掉 `&& rm ...` 等后续命令，审批界面与真实执行不一致。
+- 变更后：仅替换 `Authorization: Bearer <one>` 或 `Authorization:<one>` 的单个凭证 token；后续 Shell 语法原样保留。
+- 修改原因：四次复查——脱敏不得隐藏实际将执行的操作。
+- 验证：`tests/filesystem-tools.test.ts`（`&& rm -rf report` 用例）。
+
+### 2026-11-25 — 凭证 token 在 Shell 元字符处截断
+
+- 主题 ID：`application.local-cli`
+- 变更前：`\S+` 仍会把 `abc&&rm` / `abc;touch` / `abc|sh` 整段当 token，漏显后续操作。
+- 变更后：凭证字符类为 `[A-Za-z0-9._~+/=-]+`，在 `&|;` 等元字符前截断。
+- 修改原因：五次复查——无空格紧邻运算符。
+- 验证：`tests/filesystem-tools.test.ts`。

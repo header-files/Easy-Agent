@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**当前任务为 Phase 2.1 多模型与 Provider 管理，唯一阶段依据为 `docs/phase-2.1.md`；完成后停止，不自动接续 Phase 2.2 文件/终端工具等后续阶段。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**Phase 2.2 已完成（本机 darwin 验收见 `docs/phase-2.2.md` §14）。未获用户明确授权前不要进入 Phase 2.3；仅做已授权范围内的修复与文档维护。**
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-2.1.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.6 保留各自基线与历史验收。**
+3. **`docs/phase-2.2.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.6、2.1 保留各自基线与历史验收。**
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,30 +29,22 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前阶段应该做什么：Phase 2.1
+## 3. 当前阶段：Phase 2.2 已完成
 
-在已完成的 Phase 1（含统一 Service、Composition、CLI）基线上，严格执行 [Phase 2.1 唯一设计](phase-2.1.md)：
+Phase 1、Phase 2.1 与 [Phase 2.2](phase-2.2.md)（本机 darwin 验收见 §14）均为已完成基线。Windows/Linux 原生项标为未验证，不得宣称完整三平台验收。**未获用户明确授权前不要进入 Phase 2.3**；仅做已授权范围内的修复与文档维护。
 
-- 用 Providers + Models + DefaultModel 统一配置替换旧单模型配置；`type` 选实现，Provider ID 只作实例身份。
-- 实现 Model Registry / Router，保持现有 `ModelClient` 契约；Router 不保存 Session 当前模型。
-- Session/Application 按 Execution > Session > Application 选择模型，并在提交时固化。
-- CLI 增加 `/model` 列表与切换；新增 OpenAI Responses Provider，不依赖服务端会话状态。
-- 不进入 Phase 2.2 文件/终端工具、Workspace、Sandbox、审批，也不实现 HTTP/Persistence/MCP/Skills。
-- 用注入 Provider 工厂的真实装配完成纯离线路由、Responses 协议 Fixture、Session 模型固化、CLI `/model` 与既有模型→工具→模型回归；多工具保持既有串行策略。
+## 4. 仍不在范围内的功能（待后续授权）
 
-当前只授权 Phase 2.1；Phase 1.1～1.6 作为已完成基线继续有效。整体顺序为 1.1 → 1.2 → 1.3 → 1.4 → 1.5 → 1.6 → **2.1 多模型与 Provider 管理**。
-
-## 4. 不在本次阶段实现的功能
-
-- Phase 2.2 内置文件/终端工具、Workspace、Sandbox 与基础审批。
+- Docker / OS 级沙箱、Tool Permission ACL、`sensitive` 策略、文件删除/移动。
 - HTTP Server、REST/SSE、Web UI、正式 SDK、CLI 远程模式及 HTTP 专有路由、鉴权或线协议。
 - **Session Event Log 的 JSONL 读取和写入**、Transaction Journal、持久化事件投影、重放或崩溃恢复。
 - Runtime Event Bus、持久化 Inbox、Steer/Follow-up、MCP/Skills、模型自动发现、热更新 Provider、Alias/Fallback。
-- 擅自重写 Loop/Engine/FIFO；不向 Engine ExecutionStatus 加 QUEUED。
+- 擅自重写 Loop/Engine/FIFO；不向 Engine ExecutionStatus 加 QUEUED 或 WAITING_APPROVAL。
+- 自动启动 Phase 2.3。
 
 ## 5. 推荐开发顺序
 
-严格按 `docs/phase-2.1.md` 的 2.1.0 → 2.1.6 推进；完成后停止，不自动进入 Phase 2.2。
+Phase 2.2 已按 2.2.0 → 2.2.6 落地并停止；下一阶段须用户单独授权。
 
 ## 6. 开发与验证约束
 
@@ -92,7 +84,8 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 | `docs/phase-1.4.md`             | 已完成 Execution Engine 设计与历史验收                                           |
 | `docs/phase-1.5.md`             | 已完成 Agent Management 设计与历史验收                                           |
 | `docs/phase-1.6.md`             | 已完成 Application Service、Composition、CLI 与端到端验收                        |
-| `docs/phase-2.1.md`             | **当前唯一** 多模型与 Provider 管理阶段依据                                      |
+| `docs/phase-2.1.md`             | 已完成多模型与 Provider 管理基线与历史验收                                       |
+| `docs/phase-2.2.md`             | **当前唯一** 内置工具 / Workspace / 审批阶段依据                                 |
 | `docs/phase-1.md`               | Phase 1 阶段顺序索引                                                             |
 | `src/runtime/logging/README.md` | 已完成 Logging 的接口、配置与安全边界                                            |
 | `docs/roadmap.md`               | 后续能力范围，不是本期待办                                                       |

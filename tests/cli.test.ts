@@ -136,6 +136,37 @@ function application(
       cancelled.push({ sessionId, executionId });
       return true;
     },
+    registerWorkspace() {
+      throw new AgentApplicationError('operation_failed');
+    },
+    createWorkspace() {
+      throw new AgentApplicationError('operation_failed');
+    },
+    listWorkspaces() {
+      return [];
+    },
+    getWorkspaceStatus() {
+      throw new AgentApplicationError('session_not_found');
+    },
+    recoverWorkspace() {},
+    removeWorkspace() {
+      return false;
+    },
+    getSessionWorkspaceId() {
+      return undefined;
+    },
+    getTerminalShell() {
+      return '/bin/sh';
+    },
+    listPendingApprovals() {
+      return [];
+    },
+    decideApproval() {
+      throw new AgentApplicationError('invalid_input');
+    },
+    subscribeApprovals() {
+      return () => {};
+    },
   };
   const app: EasyAgentApplication = {
     service,

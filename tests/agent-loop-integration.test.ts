@@ -649,7 +649,9 @@ test(
       },
     });
     const source = context();
-    source.config.extensions = { defaultAgentLoop: { toolTimeoutMs: 20 } };
+    // Keep short vs hanging handler, but avoid <Ajv/validate under parallel load
+    // racing the timer before the handler is entered (handlerCalls would be 0).
+    source.config.extensions = { defaultAgentLoop: { toolTimeoutMs: 200 } };
     const received: AgentLoopEvent[] = [];
     try {
       await assert.rejects(

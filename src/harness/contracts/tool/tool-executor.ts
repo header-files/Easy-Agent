@@ -9,7 +9,13 @@ export interface ToolCall {
 
 export interface ToolExecutionOptions {
   signal?: AbortSignal;
+  /** Applies only to the tool handler / terminal run phase, not approval waits. */
   timeoutMs?: number;
+  /** Independent approval wait limit for gated executors. */
+  approvalTimeoutMs?: number;
+  workspaceId?: string;
+  sessionId?: string;
+  executionId?: string;
 }
 
 /** Reusable, concurrent component; each invocation owns its execution state. */

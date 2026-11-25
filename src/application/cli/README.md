@@ -24,9 +24,13 @@ node dist/application/cli/bin.js chat --config easy-agent.config.example.json
 
 ## 交互和生命周期
 
+- 启动横幅展示当前 `OS` 与默认 Terminal Shell。
 - `/model`：列出 Registry 显式注册模型，当前 Session 模型前加 `*`。
 - `/model <provider-id/model-id>`：校验并切换**当前 Session** 默认模型；无效选择保持原值。
-- `/new` 创建并切换至新的空 Session，旧 Session 留在进程内，不复制历史、不删除旧会话。
+- `/workspace status|list|register|create|use|recover`：查看、注册/创建目录、切换绑定（`use`/`new` 创建新 Session）、显式恢复 `UNSAFE`。
+- `/tools [name,...|all]`：设定下次 `/new` 的 `allowedNames`（不改当前 Session）。
+- `/new [workspaceId]`：创建并切换 Session；可显式绑定 Workspace；沿用当前 `/tools` 选择。
+- 写工具/Terminal 审批在 **submit 前**订阅通道；`path` 全文展示；`command` 展示启发式脱敏后的全文（常见 `password=`/`Bearer`/令牌形态），并附 `commandChars` 与权威 `argsHash`（批准仍绑定未脱敏冻结参数）；`content`/`oldText`/`newText`/口令类字段脱敏为长度摘要。用户输入 `y`/`n` 走同一 readline 迭代器。
 - `/exit` 在当前轮最终结果完成后消费，随后执行 `dispose()`。CLI 每轮等待最终结果再接受下一条指令；即使管道一次传入多行，也按输入顺序处理，不会让预读的 `/exit` 取消第一轮。
 - 活动任务期间 Ctrl+C 显式调用 `service.cancel(sessionId, executionId)`，重复信号不重复提交取消；继续等待实际最终结果和底层协作收尾，不将取消请求当作终态。空闲时 Ctrl+C 退出。
 - EOF 处理完已收到的输入并等待当前轮结果再清理。退出只释放本 CLI 创建的 readline 和信号监听，输入/输出流由调用方拥有。

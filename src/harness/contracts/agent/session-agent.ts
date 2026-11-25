@@ -12,6 +12,8 @@ export interface SessionAgent {
   getModel(): string | undefined;
   /** Replace the default model for future submissions only. */
   setModel(modelId: string): void;
+  /** Workspace bound at session creation, if any. */
+  getWorkspaceId?(): string | undefined;
   /** Accept queued/running cancellation in this session; true is not a terminal acknowledgement. */
   cancel(executionId: string): boolean;
 }

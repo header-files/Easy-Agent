@@ -41,5 +41,9 @@
   "defaultModel": "local/example-model",
   "agent": { "maxModelRetries": 2 },
   "cli": { "stream": true },
-  "logging": { "level": "info" }
+  "logging": { "level": "info" },
+  "workspace": {
+    "path": "./workspace",
+    "approvalTimeoutMs": 120000
+  }
 }

@@ -1,24 +1,25 @@
 # Easy Agent 功能路线图与设计预留
 
-> 路线图记录产品演进方向，**不是自动开发授权**。Phase 1（Phase 1.1～1.6）MVP 已完成，对应里程碑版本 **`v0.1.0`**（见 [Phase 1 索引](phase-1.md) 与 [v0.1.0 Release Notes](releases/v0.1.0.md)）。**当前已授权并完成 [Phase 2.1](phase-2.1.md)**；Phase 2.2 及后续仍需明确授权后再启动。
+> 路线图记录产品演进方向，**不是自动开发授权**。Phase 1（Phase 1.1～1.6）MVP 已完成，对应里程碑版本 **`v0.1.0`**（见 [Phase 1 索引](phase-1.md) 与 [v0.1.0 Release Notes](releases/v0.1.0.md)）。Phase 2.1 已完成；**当前已授权 [Phase 2.2](phase-2.2.md)**；Phase 2.3 及后续仍需明确授权后再启动。
 
 ## 一、阶段划分
 
-| 阶段                      | 目标                 | 主要交付                                                              | 状态             |
-| ------------------------- | -------------------- | --------------------------------------------------------------------- | ---------------- |
-| **Phase 0**               | 工程初始化与架构骨架 | TypeScript/Node.js、质量脚本、目录规范与文档                          | 已完成           |
-| **Logging 基线**          | Phase 1 前的统一日志 | Logger、Pino stderr、等级/错误/脱敏与离线测试                         | 已完成           |
-| [Phase 1.1](phase-1.1.md) | Model System         | 模型契约、Chat Completions、流式/Tool Calling、并发及日志             | 已完成（v0.1.0） |
-| [Phase 1.2](phase-1.2.md) | Tool Runtime         | 工具契约、Registry/Executor、严格 Schema、结果与桥接、取消/超时和并发 | 已完成（v0.1.0） |
-| [Phase 1.3](phase-1.3.md) | Agent Loop           | 通用契约、DefaultAgentLoop、流式模型、串行工具、完整上下文            | 已完成（v0.1.0） |
-| [Phase 1.4](phase-1.4.md) | Execution Engine     | 任意 Loop 驱动、内存状态/事件/结果、取消及有界快照                    | 已完成（v0.1.0） |
-| [Phase 1.5](phase-1.5.md) | Agent Management     | 内存 Session、FIFO、上下文提交、取消和独立事件/结果观察               | 已完成（v0.1.0） |
-| [Phase 1.6](phase-1.6.md) | Composition + CLI    | 统一 Service、配置与默认装配、本地 CLI、资源清理和端到端集成          | 已完成（v0.1.0） |
-| [Phase 2.1](phase-2.1.md) | 多模型与 Provider    | Registry/Router、Providers 配置、Session/CLI 切换、Responses Provider | 已完成           |
-| **Phase 2.2+**            | 基础可用 Agent 续    | 文件/终端工具、Workspace/Sandbox、审批、HTTP/SSE、持久化等            | 规划（待授权）   |
-| **Phase 3+**              | 扩展与可靠运行能力   | MCP、Skill、Memory、Approval、Sandbox、Recovery、多 Agent、Web UI 等  | 规划（待授权）   |
+| 阶段                      | 目标                 | 主要交付                                                              | 状态                       |
+| ------------------------- | -------------------- | --------------------------------------------------------------------- | -------------------------- |
+| **Phase 0**               | 工程初始化与架构骨架 | TypeScript/Node.js、质量脚本、目录规范与文档                          | 已完成                     |
+| **Logging 基线**          | Phase 1 前的统一日志 | Logger、Pino stderr、等级/错误/脱敏与离线测试                         | 已完成                     |
+| [Phase 1.1](phase-1.1.md) | Model System         | 模型契约、Chat Completions、流式/Tool Calling、并发及日志             | 已完成（v0.1.0）           |
+| [Phase 1.2](phase-1.2.md) | Tool Runtime         | 工具契约、Registry/Executor、严格 Schema、结果与桥接、取消/超时和并发 | 已完成（v0.1.0）           |
+| [Phase 1.3](phase-1.3.md) | Agent Loop           | 通用契约、DefaultAgentLoop、流式模型、串行工具、完整上下文            | 已完成（v0.1.0）           |
+| [Phase 1.4](phase-1.4.md) | Execution Engine     | 任意 Loop 驱动、内存状态/事件/结果、取消及有界快照                    | 已完成（v0.1.0）           |
+| [Phase 1.5](phase-1.5.md) | Agent Management     | 内存 Session、FIFO、上下文提交、取消和独立事件/结果观察               | 已完成（v0.1.0）           |
+| [Phase 1.6](phase-1.6.md) | Composition + CLI    | 统一 Service、配置与默认装配、本地 CLI、资源清理和端到端集成          | 已完成（v0.1.0）           |
+| [Phase 2.1](phase-2.1.md) | 多模型与 Provider    | Registry/Router、Providers 配置、Session/CLI 切换、Responses Provider | 已完成                     |
+| [Phase 2.2](phase-2.2.md) | 工具 / Workspace     | FileSystem/Terminal、Workspace 锁与 UNSAFE、审批、CLI 闭环            | 已完成（本机 darwin 验收） |
+| **Phase 2.3+**            | 基础可用 Agent 续    | HTTP/SSE、持久化等                                                    | 规划（待授权）             |
+| **Phase 3+**              | 扩展与可靠运行能力   | MCP、Skill、Memory、Sandbox、Recovery、多 Agent、Web UI 等            | 规划（待授权）             |
 
-当前开发以 [Phase 2.1](phase-2.1.md) 验收为准；Phase 1 总验收见 [Phase 1 索引](phase-1.md)；历史演进依据见 [项目记录](changes.md)。
+当前开发以 [Phase 2.2](phase-2.2.md) 验收为准；Phase 2.1 / Phase 1 见各自文档；历史演进依据见 [项目记录](changes.md)。
 
 阶段切换需用户明确决定；不要把未来功能当成“顺手实现”。
 

@@ -18,6 +18,14 @@ export function copyOptions(
     const signal: unknown = 'signal' in options ? options.signal : undefined;
     const timeoutMs: unknown =
       'timeoutMs' in options ? options.timeoutMs : undefined;
+    const approvalTimeoutMs: unknown =
+      'approvalTimeoutMs' in options ? options.approvalTimeoutMs : undefined;
+    const workspaceId: unknown =
+      'workspaceId' in options ? options.workspaceId : undefined;
+    const sessionId: unknown =
+      'sessionId' in options ? options.sessionId : undefined;
+    const executionId: unknown =
+      'executionId' in options ? options.executionId : undefined;
     if (signal !== undefined && !(signal instanceof AbortSignal))
       return undefined;
     if (
@@ -28,9 +36,28 @@ export function copyOptions(
         timeoutMs > 2_147_483_647)
     )
       return undefined;
+    if (
+      approvalTimeoutMs !== undefined &&
+      (typeof approvalTimeoutMs !== 'number' ||
+        !Number.isSafeInteger(approvalTimeoutMs) ||
+        approvalTimeoutMs <= 0 ||
+        approvalTimeoutMs > 2_147_483_647)
+    )
+      return undefined;
+    for (const value of [workspaceId, sessionId, executionId]) {
+      if (value !== undefined && typeof value !== 'string') return undefined;
+    }
     return {
       ...(signal === undefined ? {} : { signal }),
       ...(timeoutMs === undefined ? {} : { timeoutMs }),
+      ...(approvalTimeoutMs === undefined ? {} : { approvalTimeoutMs }),
+      ...(workspaceId === undefined
+        ? {}
+        : { workspaceId: workspaceId as string }),
+      ...(sessionId === undefined ? {} : { sessionId: sessionId as string }),
+      ...(executionId === undefined
+        ? {}
+        : { executionId: executionId as string }),
     };
   } catch {
     return undefined;
@@ -104,8 +131,49 @@ export class ExecutionControl {
     return result;
   }
 
+  /**
+   * Like `run`, but after timeout/abort still waits for `operation` to settle
+   * (or a grace period) before returning. Use when a Workspace lock must not be
+   * released while the handler / process cleanup may still be running.
+   * `onAbandoned` runs only when the operation is still pending after graceMs.
+   */
+  async runUntilSettled<T>(
+    operation: () => T | PromiseLike<T>,
+    options: { graceMs?: number; onAbandoned?: () => void } = {},
+  ): Promise<T> {
+    this.check();
+    const pending = Promise.resolve().then(() => {
+      this.check();
+      return operation();
+    });
+    // Prevent unhandled rejection if we abandon after grace.
+    void pending.catch(() => {});
+    try {
+      const result = await Promise.race([pending, this.stopped]);
+      this.check();
+      return result;
+    } catch (error) {
+      const interruption = this.interruption();
+      if (!interruption) throw error;
+      const graceMs = options.graceMs ?? 5_000;
+      const settled = await Promise.race([
+        pending.then(
+          () => true,
+          () => true,
+        ),
+        delay(graceMs).then(() => false),
+      ]);
+      if (!settled) options.onAbandoned?.();
+      throw interruption;
+    }
+  }
+
   dispose(): void {
     if (this.timer !== undefined) clearTimeout(this.timer);
     this.external?.removeEventListener('abort', this.onAbort);
   }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

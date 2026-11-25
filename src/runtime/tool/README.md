@@ -128,3 +128,11 @@ Executor 通过既有 Logger 记录安全生命周期：debug 开始，success �
 运行 `node --test tests/tool-runtime.test.ts tests/tool-integration.test.ts` 验证注册、Schema、Handler、错误、快照、并发、控制和桥接；`npm test` 还包含公共契约及已有 Model/Logging 回归。所有常规验证均离线，不访问模型、网络服务、数据库或真实 API Key。完整工程命令见 [工程规范](../../../docs/conventions.md)，当前范围见 [Phase 1.2](../../../docs/phase-1.2.md)，历史见 [changes.md](changes.md)。
 
 Schema 行为依据：[Ajv options](https://ajv.js.org/options.html)、[Schema management](https://ajv.js.org/guide/managing-schemas.html)、[JSON Schema](https://ajv.js.org/json-schema.html)。
+
+## Phase 2.2：Guarded 与内置 FileSystem
+
+- `GuardedToolExecutor`：校验 → 审批（不持锁、不计工具超时）→ Workspace 锁 → Handler；批准后使用审批快照中的 `arguments`，不以调用方可变对象为准。
+- `builtins/safe-fs.ts`：读写打开尽量带 `O_NOFOLLOW`；无该标志时对 Workspace 根到目标做逐组件 `lstat`，无法证明无链接则拒绝。新建用 `O_EXCL`；覆盖/编辑先写同目录临时文件再 `rename`，rename 前失败保留原文件。
+- `list_directory`：Node 无法按目录 fd `scandir`，故 `openDirRead` 持句柄，`readdir(path)` 前后及每个子项 `lstat` 前后用 `dev`/`ino` 校验路径仍指向同一目录；替换为区外符号链接则失败关闭。无 `openat` 时子项检查—使用仍有残留 TOCTOU；Windows Junction 需原生再验。
+- `TerminalExecutor`（POSIX）：`detached` 自有进程组；Shell `exit` 后轮询组内是否仍有成员，空闲后才返回；超时/取消则杀组，仍存活则 UNSAFE。脱离进程组的 daemon 仍无法保证。Windows 树检测为 best-effort。
+- 详见 [Phase 2.2](../../../docs/phase-2.2.md) 与 [changes.md](changes.md)。

@@ -25,5 +25,6 @@ export interface AgentLoopContext {
   metadata?: {
     sessionId?: string;
     executionId?: string;
+    workspaceId?: string;
   };
 }
