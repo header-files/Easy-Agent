@@ -145,7 +145,7 @@ test('Service仅返回Session身份，原样透传提交句柄，可由非CLI适
       return true;
     },
   });
-  const identity = service.createSession(options);
+  const identity = await service.createSession(options);
   assert.deepEqual(identity, { sessionId: 'session' });
   assert.ok(Object.isFrozen(identity));
   assert.equal(received?.context, options.context);
@@ -175,7 +175,7 @@ test('Service连续submit委托原FIFO，无观察者也运行且下一项继承
       },
     }),
   );
-  const { sessionId } = app.createSession();
+  const { sessionId } = await app.createSession();
   const first = app.submit(sessionId, 'A');
   const second = app.submit(sessionId, 'B');
   await entered.promise;
@@ -216,8 +216,8 @@ test('Service取消限定所属Session，不同Session执行并发且相互隔�
       },
     }),
   );
-  const first = app.createSession();
-  const second = app.createSession();
+  const first = await app.createSession();
+  const second = await app.createSession();
   const a = app.submit(first.sessionId, 'A');
   const b = app.submit(second.sessionId, 'B');
   await Promise.all([firstEntered.promise, secondEntered.promise]);
@@ -233,7 +233,7 @@ test('Service取消限定所属Session，不同Session执行并发且相互隔�
 test('Service保留忙碌删除false，空闲删除后缺失身份稳定报错且不误建Session', async () => {
   const instance = manager(echo);
   const app = application(instance);
-  const { sessionId } = app.createSession();
+  const { sessionId } = await app.createSession();
   const held = instance.getSession(sessionId)!;
   const handle = app.submit(sessionId, 'A');
   assert.equal(await app.deleteSession(sessionId), false);
@@ -255,9 +255,9 @@ test('Service保留忙碌删除false，空闲删除后缺失身份稳定报错�
   assert.deepEqual(app.listSessions(), []);
 });
 
-test('应用级无效输入固定分类，不向Manager提交或把任意输入写入异常', () => {
+test('应用级无效输入固定分类，不向Manager提交或把任意输入写入异常', async () => {
   const app = application(manager(echo));
-  const { sessionId } = app.createSession();
+  const { sessionId } = await app.createSession();
   for (const input of ['', ' \n\t', 42, null])
     assert.throws(
       () => app.submit(sessionId, input as string),
@@ -273,7 +273,7 @@ test('应用级无效输入固定分类，不向Manager提交或把任意输入�
       errorCode('invalid_input'),
     );
   }
-  assert.throws(
+  await assert.rejects(
     () =>
       app.createSession({
         config: { model: { name: 42 as unknown as string } },
@@ -324,8 +324,8 @@ test('Service默认Session配置按既有参数键/名单/namespace规则覆盖�
     }),
     { defaultSessionOptions: defaults },
   );
-  const first = app.createSession(overrides);
-  const second = app.createSession();
+  const first = await app.createSession(overrides);
+  const second = await app.createSession();
   await app.submit(first.sessionId, 'A').result;
   await app.submit(second.sessionId, 'B').result;
   assert.deepEqual(contexts[0]?.config, {
@@ -356,8 +356,15 @@ test('Service无模型配置支持CustomLoop，错误边界不泄露底层异常
     deleteSession: fault,
   };
   const app = application(broken);
+  await assert.rejects(app.createSession(), (error: unknown) => {
+    assert.ok(error instanceof AgentApplicationError);
+    assert.equal(error.code, 'operation_failed');
+    assert.ok(!error.message.includes(rawSecret));
+    assert.ok(!error.stack?.includes(rawSecret));
+    assert.equal(error.cause, undefined);
+    return true;
+  });
   for (const operation of [
-    () => app.createSession(),
     () => app.listSessions(),
     () => app.submit('id', 'A'),
     () => app.cancel('id', 'execution'),
@@ -373,7 +380,7 @@ test('Service无模型配置支持CustomLoop，错误边界不泄露底层异常
   }
   await assert.rejects(app.deleteSession('id'), errorCode('operation_failed'));
   const custom = application(manager(echo));
-  const identity = custom.createSession();
+  const identity = await custom.createSession();
   assert.equal(
     (await custom.submit(identity.sessionId, 'custom').result).status,
     'COMPLETED',
@@ -405,17 +412,17 @@ test('Service列出模型并按Execution>Session>Application固定提交模型�
     app.listModels().map((model) => model.id),
     ['default', 'override', 'other'],
   );
-  const first = app.createSession();
-  const second = app.createSession({
+  const first = await app.createSession();
+  const second = await app.createSession({
     config: { model: { name: 'other' } },
   });
   assert.equal(app.getSessionModel(first.sessionId), 'default');
   assert.equal(app.getSessionModel(second.sessionId), 'other');
   const e1 = app.submit(first.sessionId, 'E1');
   await firstStarted.promise;
-  app.setSessionModel(first.sessionId, 'override');
+  await app.setSessionModel(first.sessionId, 'override');
   assert.equal(app.getSessionModel(first.sessionId), 'override');
-  assert.throws(
+  await assert.rejects(
     () => app.setSessionModel(first.sessionId, 'missing/model'),
     errorCode('invalid_input'),
   );

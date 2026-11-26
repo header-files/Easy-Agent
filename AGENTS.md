@@ -4,7 +4,7 @@
 
 ## 开始工作前
 
-1. 先阅读 `docs/AGENT.md` 和 **`docs/phase-2.2.md`**，确认当前任务范围；Phase 0 / Logging / Phase 1.1～1.6 / Phase 2.1 是已完成基线与历史验收；涉及日志时先读 `src/runtime/logging/README.md` 与 `changes.md`。
+1. 先阅读 `docs/AGENT.md` 和 **`docs/phase-2.4.md`**，确认当前任务范围；Phase 0 / Logging / Phase 1.1～1.6 / Phase 2.1 / Phase 2.2 是已完成基线；Phase 2.3 暂缓；涉及日志时先读 `src/runtime/logging/README.md` 与 `changes.md`。
 2. 阅读 `docs/architecture.md`、`docs/conventions.md`，按需参考 `docs/roadmap.md`。
 3. **定位本次变更所属模块**，先读对应 `src/<module>/README.md` 和 `src/<module>/changes.md`；如存在更深一层的能力子模块，优先读该子模块文档，并按需阅读父模块。
 4. 修改全局架构或跨模块行为时，再阅读 `docs/changes.md` 中相关决策记录。
@@ -12,7 +12,8 @@
 
 ## 必须遵守
 
-- **Phase 2.2 已在本机（darwin）完成验收（见 `docs/phase-2.2.md` §14）。当前不要自动进入 Phase 2.3；未获用户明确授权前，仅做已授权范围内的修复与文档维护。**
+- **Phase 2.4 已在本机（darwin）完成验收（见 `docs/phase-2.4.md` §17）。未获用户明确授权前不要进入下一阶段；Phase 2.3 HTTP/SSE 仍暂缓；不实现自动 Loop 恢复、Inbox、Steer、Snapshot 或数据库。**
+- Transaction Journal 是唯一事务提交依据；PreparedTransaction 固定 Operations/ID/Sequence；Roll Forward 仅恢复本地持久化操作；Event Replay 不重新执行 LLM/Tool；持久化失败严格 fail-closed；Workspace UNSAFE 跨重启保留；未完成 Execution 不自动恢复或重新入队。配置项 `persistence.dataDir`。
 - Easy Agent 定位为开箱即用、灵活可扩展的通用 Agent；原则为 Easy to Use / Easy to Extend。
 - 架构：Application / Agent / Execution / Runtime 四个运行职责层；Harness 横向支撑；Composition / Bootstrap 统一装配。
 - 保留 Agent Loop（策略）与 Execution Engine（机制）的设计分离；不把 Harness 做成请求必经层，不强制逐层调用。

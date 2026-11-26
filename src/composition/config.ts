@@ -31,6 +31,10 @@ export interface EasyAgentConfig {
   terminal?: {
     shell?: string;
   };
+  persistence?: {
+    /** Local data directory for Journal / Event Log / Workspace Registry. */
+    dataDir: string;
+  };
 }
 
 export interface EasyAgentConfigInput {
@@ -42,6 +46,7 @@ export interface EasyAgentConfigInput {
   logging?: Partial<EasyAgentConfig['logging']>;
   workspace?: EasyAgentConfig['workspace'];
   terminal?: EasyAgentConfig['terminal'];
+  persistence?: EasyAgentConfig['persistence'];
 }
 
 export class ConfigurationError extends Error {
@@ -231,6 +236,7 @@ export function resolveConfig(
     let logging: Record<string, unknown> = { level: 'info' };
     let workspace: Record<string, unknown> = {};
     let terminal: Record<string, unknown> = {};
+    let persistence: Record<string, unknown> = {};
     for (const source of sources) {
       const root = section(source, [
         'providers',
@@ -241,6 +247,7 @@ export function resolveConfig(
         'logging',
         'workspace',
         'terminal',
+        'persistence',
       ]);
       if (root.providers !== undefined) providerSource = root.providers;
       if (root.models !== undefined) modelSource = root.models;
@@ -253,6 +260,10 @@ export function resolveConfig(
         ...section(root.workspace, ['path', 'approvalTimeoutMs']),
       };
       terminal = { ...terminal, ...section(root.terminal, ['shell']) };
+      persistence = {
+        ...persistence,
+        ...section(root.persistence, ['dataDir']),
+      };
     }
     const resolvedProviders = providers(providerSource, env);
     const resolvedModels = models(modelSource, resolvedProviders);
@@ -296,6 +307,13 @@ export function resolveConfig(
     ) {
       invalid('terminal.shell');
     }
+    if (
+      persistence.dataDir !== undefined &&
+      (typeof persistence.dataDir !== 'string' ||
+        persistence.dataDir.trim().length === 0)
+    ) {
+      invalid('persistence.dataDir');
+    }
     return {
       providers: resolvedProviders,
       models: resolvedModels,
@@ -317,6 +335,11 @@ export function resolveConfig(
                     approvalTimeoutMs: workspace.approvalTimeoutMs as number,
                   }),
             },
+          }),
+      ...(persistence.dataDir === undefined
+        ? {}
+        : {
+            persistence: { dataDir: (persistence.dataDir as string).trim() },
           }),
       ...(terminal.shell === undefined
         ? {}

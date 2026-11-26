@@ -104,3 +104,49 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 变更后：删除 `demo-tool.ts` 与默认注册；仅保留内置 FileSystem/Terminal；测试通过 `options.tools` 注入所需工具。
 - 修改原因：用户要求去掉演示工具，避免进入真实模型会话的工具列表。
 - 验证：`tests/bootstrap.test.ts`、`tests/phase-1.6-integration.test.ts` 与全仓测试。
+
+### 2026-11-26 — Bootstrap 打开 Persistence 并冷启动恢复
+
+- 主题 ID：`composition.persistence.phase-2.4`
+- 变更前：无 dataDir；启动不恢复 Session/Workspace。
+- 变更后：配置 `persistence.dataDir`；启动时 openPersistenceRuntime → 恢复 Workspace/UNSAFE → 恢复 Session → 写入 interrupted_detected；注入 Loop/Tool/Terminal/Manager/App。
+- 修改原因：Phase 2.4 启动顺序与单写锁。
+- 影响范围：config、bootstrap；无 HTTP。
+- 验证：续聊与中断集成测试（darwin）。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — Composition 现行说明与 async createSession 示例对齐
+
+- 主题 ID：`composition.persistence.phase-2.4`
+- 变更前：README 仍暗示 Event Log/恢复未实现；示例同步调用 `createSession()`。
+- 变更后：明确 `persistence.dataDir` 启用 Journal/恢复；示例改为 `await createSession()`。
+- 修改原因：复查指出 Composition/Persistence 现行文档过时。
+- 验证：文档核对；全仓 311 通过。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 冷启动跳过已删除 Session
+
+- 主题 ID：`composition.persistence.phase-2.4`
+- 变更前：Bootstrap 恢复全部 Session Projection。
+- 变更后：跳过 `session.removed`（已提交 `session/deleted`）。
+- 修改原因：与 Session 删除持久化对齐，避免删除后复活。
+- 验证：phase-2.4「删除 Session 后重启不复活」。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 冷启动 bindSession 失败拒绝可写启动
+
+- 主题 ID：`composition.persistence.phase-2.4`
+- 变更前：`bindSession` 返回 false 被忽略，可带着悬空 Workspace 引用启动。
+- 变更后：bind 失败抛出 `BootstrapError(initialization_failed, persistence)`；Projection 层亦已 fail-closed。
+- 修改原因：复查复现 Session 引用缺失 Workspace 仍可写启动。
+- 验证：phase-2.4「Session 引用不存在的 Workspace 时 Bootstrap 失败」。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 冷启动 interrupted_detected 先于默认 Workspace 登记
+
+- 主题 ID：`composition.persistence.phase-2.4`
+- 变更前：先可能登记默认 Workspace（触发 refresh），再写 interrupted_detected，导致中断视图被冲掉。
+- 变更后：`flushColdStartInterrupts` 在打开 Persistence 后、Workspace 登记前执行；末尾再幂等补刷。
+- 修改原因：复查启动后历史查询仍为 CREATED。
+- 验证：phase-2.4「Bootstrap 登记 Workspace 后仍保留冷启动 INTERRUPTED」。
+- 现行说明：[README.md](README.md)。

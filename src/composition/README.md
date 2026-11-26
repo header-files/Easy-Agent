@@ -2,7 +2,7 @@
 
 ## 职责与当前状态
 
-已实现统一配置解析、多 Provider 静态工厂装配、Model Registry / Router 注入和应用生命周期。它是初始化边界，不是新的业务运行层：不实现 Loop 算法、Session FIFO、上下文提交、HTTP 或持久化。
+已实现统一配置解析、多 Provider 静态工厂装配、Model Registry / Router 注入、可选 Persistence 打开与冷启动恢复，以及应用生命周期。它是初始化边界，不是新的业务运行层：不实现 Loop 算法、Session FIFO、上下文提交或 HTTP。
 
 入口 [index.ts](index.ts) 导出 `resolveConfig`、`loadConfig`、`bootstrap`、配置/应用类型及安全错误。项目根入口也提供这些导出。
 
@@ -10,19 +10,20 @@
 
 `resolveConfig({ fileConfig?, env?, overrides? })` 是纯函数；`loadConfig({ filePath?, env?, overrides? })` 异步读取显式指定的 JSON 文件，默认在此边界读取 `process.env`。不自动查找配置、不加载 `.env`。优先级：**overrides（CLI） > env > 文件 > 默认值**。参数按键合并，其嵌套值整体替换，返回独立 JSON 数据。
 
-| 配置                          | 环境变量                       | 默认值 / 规则                                                          |
-| ----------------------------- | ------------------------------ | ---------------------------------------------------------------------- |
-| `providers.<id>.type`         | —                              | 必填协议实现：`openai-compatible` 或 `openai-responses`（不是厂商名）  |
-| `providers.<id>.baseURL`      | 可用 `${ENV}` 整串引用         | **必填**；由用户显式填写，代码不预设厂商地址                           |
-| `providers.<id>.apiKey`       | 可用 `${ENV}` 整串引用         | Compatible 可选；Responses 必填                                        |
-| `models`                      | —                              | 必填显式列表，格式 `providerId/modelId`                                |
-| `defaultModel`                | `EASY_AGENT_DEFAULT_MODEL`     | 必须已在 `models` 中注册                                               |
-| `agent.maxModelRetries`       | `EASY_AGENT_MAX_MODEL_RETRIES` | `2`                                                                    |
-| `cli.stream`                  | `EASY_AGENT_STREAM`            | `true`                                                                 |
-| `logging.level`               | `LOG_LEVEL`                    | `info`                                                                 |
-| `workspace.path`              | —                              | 可选默认 Workspace 根目录；存在则 register，否则 create；支持前导 `~/` |
-| `workspace.approvalTimeoutMs` | —                              | 可选审批等待上限（与 toolTimeout 独立）                                |
-| `terminal.shell`              | —                              | 可选覆盖默认 Shell（POSIX `/bin/sh`，Windows `ComSpec`→`cmd.exe`）     |
+| 配置                          | 环境变量                       | 默认值 / 规则                                                                       |
+| ----------------------------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| `providers.<id>.type`         | —                              | 必填协议实现：`openai-compatible` 或 `openai-responses`（不是厂商名）               |
+| `providers.<id>.baseURL`      | 可用 `${ENV}` 整串引用         | **必填**；由用户显式填写，代码不预设厂商地址                                        |
+| `providers.<id>.apiKey`       | 可用 `${ENV}` 整串引用         | Compatible 可选；Responses 必填                                                     |
+| `models`                      | —                              | 必填显式列表，格式 `providerId/modelId`                                             |
+| `defaultModel`                | `EASY_AGENT_DEFAULT_MODEL`     | 必须已在 `models` 中注册                                                            |
+| `agent.maxModelRetries`       | `EASY_AGENT_MAX_MODEL_RETRIES` | `2`                                                                                 |
+| `cli.stream`                  | `EASY_AGENT_STREAM`            | `true`                                                                              |
+| `logging.level`               | `LOG_LEVEL`                    | `info`                                                                              |
+| `workspace.path`              | —                              | 可选默认 Workspace 根目录；存在则 register，否则 create；支持前导 `~/`              |
+| `workspace.approvalTimeoutMs` | —                              | 可选审批等待上限（与 toolTimeout 独立）                                             |
+| `terminal.shell`              | —                              | 可选覆盖默认 Shell（POSIX `/bin/sh`，Windows `ComSpec`→`cmd.exe`）                  |
+| `persistence.dataDir`         | —                              | 可选本地数据目录；配置后启用 Journal/Event Log/Registry 与冷启动恢复；支持前导 `~/` |
 
 Provider ID 只表示配置实例身份，**不能**决定协议实现；实现由 `type` 选择。模型标识按第一个 `/` 拆分，上游 Model ID 可继续含 `/`。未知 `type`、未知 Provider、重复模型、未注册默认模型、非法 URL/密钥在启动时拒绝。不保留 Phase 1 单 `model` 配置兼容层。
 
@@ -40,7 +41,7 @@ const config = await loadConfig({
 });
 const app = await bootstrap(config);
 try {
-  const { sessionId } = app.service.createSession();
+  const { sessionId } = await app.service.createSession();
   const execution = app.service.submit(sessionId, '请计算 2 加 3');
   const result = await execution.result; // 不观察 events 也照常执行
 } finally {
@@ -90,4 +91,6 @@ bootstrap(config, {
 - [bootstrap.ts](bootstrap.ts)：工厂映射、Registry/Router 装配与所有权；[lifecycle.ts](lifecycle.ts)：Service 关闭门及活跃句柄收尾。
 - [配置测试](../../tests/composition-config.test.ts)、[装配测试](../../tests/bootstrap.test.ts)：离线优先级、装配、失败回滚、自有资源、幂等/重入及协作清理。
 
-执行 `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test`。阶段验收见 [Phase 2.2](../../docs/phase-2.2.md)，历史决策见 [changes.md](changes.md)。HTTP Server、Session Event Log、持久化恢复、Provider 热更新、Docker/OS 沙箱及后续能力未实现。
+执行 `npm run typecheck`、`npm run lint`、`npm run format:check`、`npm run build`、`npm test`。阶段验收见 [Phase 2.4](../../docs/phase-2.4.md) §17 与 [Phase 2.2](../../docs/phase-2.2.md)，历史决策见 [changes.md](changes.md)。
+
+配置 `persistence.dataDir` 时，Bootstrap 打开 Journal、**先**落盘冷启动 `interrupted_detected`、再登记默认 Workspace / 恢复 Session Projection，并注入严格提交门槛；详见 [Persistence README](../runtime/persistence/README.md)。HTTP Server、Provider 热更新、Docker/OS 沙箱及后续能力未实现。

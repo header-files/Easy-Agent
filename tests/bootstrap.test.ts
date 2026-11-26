@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { homedir } from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 import { AgentApplicationError } from '../src/application/index.ts';
 import { DefaultAgentManager } from '../src/agent/index.ts';
@@ -6,6 +8,7 @@ import { DefaultExecutionEngine } from '../src/execution/engine/index.ts';
 import {
   bootstrap,
   BootstrapError,
+  expandUserPath,
   resolveConfig,
 } from '../src/composition/index.ts';
 import type {
@@ -76,12 +79,12 @@ test('Bootstrap默认装配不发网络，注入Model贯通多轮上下文与Ses
     logger,
   });
   try {
-    const session = app.service.createSession();
+    const session = await app.service.createSession();
     const first = app.service.submit(session.sessionId, 'one');
     const second = app.service.submit(session.sessionId, 'two');
     assert.equal((await first.result).status, 'COMPLETED');
     assert.equal((await second.result).status, 'COMPLETED');
-    const other = app.service.createSession();
+    const other = await app.service.createSession();
     await app.service.submit(other.sessionId, 'isolated').result;
     assert.deepEqual(
       seen.map((request) => request.messages.map((message) => message.content)),
@@ -136,7 +139,7 @@ test(
         }),
       },
     });
-    const session = app.service.createSession();
+    const session = await app.service.createSession();
     const first = app.service.submit(session.sessionId, 'running');
     const queued = app.service.submit(session.sessionId, 'queued');
     await entered.promise;
@@ -188,7 +191,7 @@ test(
       },
     };
     const app = await bootstrap(config(), { loop, logger });
-    const session = app.service.createSession();
+    const session = await app.service.createSession();
     const execution = app.service.submit(session.sessionId, 'work');
     await entered.promise;
     let settled = false;
@@ -329,7 +332,7 @@ test('dispose在外部cancel重入时也使用同一Promise；owned无效Model�
     return session;
   };
   const app = await bootstrap(config(), { manager, logger });
-  const session = app.service.createSession();
+  const session = await app.service.createSession();
   const work = app.service.submit(session.sessionId, 'work');
   await entered.promise;
   const closing = app.dispose();
@@ -369,4 +372,17 @@ test('dispose在外部cancel重入时也使用同一Promise；owned无效Model�
   };
   await second.dispose();
   assert.equal(released, 2);
+});
+
+test('expandUserPath 展开前导 ~（供 persistence.dataDir / workspace.path）', () => {
+  assert.equal(expandUserPath('~'), homedir());
+  assert.equal(
+    expandUserPath('~/.easy-agent/data'),
+    path.join(homedir(), '.easy-agent', 'data'),
+  );
+  assert.equal(expandUserPath('./data'), './data');
+  assert.equal(
+    expandUserPath(path.join(homedir(), 'abs')),
+    path.join(homedir(), 'abs'),
+  );
 });

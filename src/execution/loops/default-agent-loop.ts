@@ -13,6 +13,7 @@ import type {
   ToolExecutor,
   ToolRegistry,
 } from '../../harness/contracts/tool/index.ts';
+import type { PersistenceBridge } from '../../runtime/persistence/index.ts';
 import { toToolResultMessage } from '../../runtime/tool/model-bridge.ts';
 import { prepare } from './prepare.ts';
 import { controlledRun, type LoopControl } from './control.ts';
@@ -30,20 +31,29 @@ interface Counts {
   modelRetries: number;
   toolCalls: number;
 }
+
+export interface DefaultAgentLoopDeps {
+  persistence?: PersistenceBridge;
+}
+
 /** Default policy only: reusable capabilities are supplied by the caller. */
 export class DefaultAgentLoop implements AgentLoop {
   private readonly modelClient: ModelClient;
   private readonly toolRegistry: ToolRegistry;
   private readonly toolExecutor: ToolExecutor;
+  private readonly persistence: PersistenceBridge | undefined;
+  private activeMeta: { sessionId?: string; executionId?: string } | undefined;
 
   constructor(
     modelClient: ModelClient,
     toolRegistry: ToolRegistry,
     toolExecutor: ToolExecutor,
+    deps: DefaultAgentLoopDeps = {},
   ) {
     this.modelClient = modelClient;
     this.toolRegistry = toolRegistry;
     this.toolExecutor = toolExecutor;
+    this.persistence = deps.persistence;
   }
 
   run(context: AgentLoopContext): AsyncIterable<AgentLoopEvent> {
@@ -54,6 +64,14 @@ export class DefaultAgentLoop implements AgentLoop {
     context: AgentLoopContext,
     control: LoopControl,
   ): AsyncGenerator<AgentLoopEvent> {
+    this.activeMeta = {
+      ...(context.metadata?.sessionId === undefined
+        ? {}
+        : { sessionId: context.metadata.sessionId }),
+      ...(context.metadata?.executionId === undefined
+        ? {}
+        : { executionId: context.metadata.executionId }),
+    };
     try {
       control.check();
       const prepared = {
@@ -142,8 +160,25 @@ export class DefaultAgentLoop implements AgentLoop {
         }
       }
     } finally {
+      this.activeMeta = undefined;
       control.dispose();
     }
+  }
+
+  private async persistGate(
+    type: 'llm/request' | 'llm/response',
+    payload: unknown,
+  ): Promise<void> {
+    if (!this.persistence || !this.activeMeta?.sessionId) return;
+    await this.persistence.requireSessionEvents(this.activeMeta.sessionId, [
+      {
+        type,
+        payload,
+        ...(this.activeMeta.executionId === undefined
+          ? {}
+          : { executionId: this.activeMeta.executionId }),
+      },
+    ]);
   }
 
   private result(
@@ -197,6 +232,15 @@ export class DefaultAgentLoop implements AgentLoop {
                 ) as typeof prepared.parameters,
               }),
         };
+        await this.persistGate('llm/request', {
+          modelCallIndex,
+          model: request.model,
+          messages: request.messages,
+          tools: request.tools,
+          ...(request.parameters === undefined
+            ? {}
+            : { parameters: request.parameters }),
+        });
         const iterable = this.modelClient.stream(request, {
           signal: prepared.signal,
           ...(prepared.options.modelTimeoutMs === undefined
@@ -259,6 +303,27 @@ export class DefaultAgentLoop implements AgentLoop {
           }
         }
         if (!started || !response) return invalidResponse();
+        await this.persistGate('llm/response', {
+          modelCallIndex,
+          finishReason: response.finishReason,
+          message: {
+            role: 'assistant',
+            content:
+              typeof response.message.content === 'string'
+                ? response.message.content
+                : null,
+            ...(response.message.toolCalls === undefined
+              ? {}
+              : {
+                  toolCalls: response.message.toolCalls.map((call) => ({
+                    id: call.id,
+                    name: call.name,
+                    argumentsJson: call.argumentsJson,
+                  })),
+                }),
+          },
+          ...(response.usage === undefined ? {} : { usage: response.usage }),
+        });
         return response;
       } catch (error) {
         control.check();

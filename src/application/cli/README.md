@@ -2,7 +2,7 @@
 
 ## 职责与边界
 
-本地 `easy-agent chat` 聊天、帮助和版本入口。CLI 只通过 Composition 的 `loadConfig` / `bootstrap` 获取统一 `AgentApplicationService`，不创建 ModelClient、ToolExecutor、AgentLoop、ExecutionEngine 或 Session 调度器；没有 HTTP、SSE、远程 CLI、Session 文件或持久化恢复。
+本地 `easy-agent chat` 聊天、帮助和版本入口。CLI 只通过 Composition 的 `loadConfig` / `bootstrap` 获取统一 `AgentApplicationService`，不创建 ModelClient、ToolExecutor、AgentLoop、ExecutionEngine 或 Session 调度器；没有 HTTP、SSE 或远程 CLI。配置 `persistence.dataDir` 时，启动可恢复已有 Session，并通过 `/session` / `/executions` 继续会话与查询历史。
 
 `run-cli.ts` 负责参数、终端输入和信号；`render-execution.ts` 只负责事件及最终结果展示。`bin.ts` 在 `import.meta.main` 时运行，导入无执行副作用。运行日志仍由统一 Logger 输出 stderr；终端正文是 Application 的交互输出。
 
@@ -28,8 +28,12 @@ node dist/application/cli/bin.js chat --config easy-agent.config.example.json
 - `/model`：列出 Registry 显式注册模型，当前 Session 模型前加 `*`。
 - `/model <provider-id/model-id>`：校验并切换**当前 Session** 默认模型；无效选择保持原值。
 - `/workspace status|list|register|create|use|recover`：查看、注册/创建目录、切换绑定（`use`/`new` 创建新 Session）、显式恢复 `UNSAFE`。
+- `/sessions`：列出已加载 Session；当前 Session 前加 `*`。
+- `/session <id|前缀>`：切换到已有（含冷启动恢复）Session；支持唯一 ID 前缀（如 `72a`），多匹配时拒绝并提示加长。
+- `/executions [id]`：列出当前 Session 历史 Execution，或查看单条结果/错误摘要。
 - `/tools [name,...|all]`：设定下次 `/new` 的 `allowedNames`（不改当前 Session）。
 - `/new [workspaceId]`：创建并切换 Session；可显式绑定 Workspace；沿用当前 `/tools` 选择。
+- 启动时若已有恢复的 Session，默认继续最后一个；否则新建。
 - 写工具/Terminal 审批在 **submit 前**订阅通道；`path` 全文展示；`command` 展示启发式脱敏后的全文（常见 `password=`/`Bearer`/令牌形态），并附 `commandChars` 与权威 `argsHash`（批准仍绑定未脱敏冻结参数）；`content`/`oldText`/`newText`/口令类字段脱敏为长度摘要。用户输入 `y`/`n` 走同一 readline 迭代器。
 - `/exit` 在当前轮最终结果完成后消费，随后执行 `dispose()`。CLI 每轮等待最终结果再接受下一条指令；即使管道一次传入多行，也按输入顺序处理，不会让预读的 `/exit` 取消第一轮。
 - 活动任务期间 Ctrl+C 显式调用 `service.cancel(sessionId, executionId)`，重复信号不重复提交取消；继续等待实际最终结果和底层协作收尾，不将取消请求当作终态。空闲时 Ctrl+C 退出。

@@ -387,7 +387,7 @@ test('同一模型响应的多个ToolCall经真实ToolExecutor严格串行并按
   });
   try {
     const execution = app.service.submit(
-      app.service.createSession().sessionId,
+      (await app.service.createSession()).sessionId,
       'two probes',
     );
     await firstEntered.promise;
@@ -438,7 +438,7 @@ test('真实ToolRuntime将工具业务失败安全回填，模型可继续完成
   });
   try {
     const execution = app.service.submit(
-      app.service.createSession().sessionId,
+      (await app.service.createSession()).sessionId,
       'call failing tool',
     );
     const events = await collect(execution.events);
@@ -596,7 +596,7 @@ test('Service观察提前退出或默认缓冲溢出均不取消执行，成功�
   });
   const app = await bootstrap(config(), { ...provider(client), logger: quiet });
   try {
-    const session = app.service.createSession();
+    const session = await app.service.createSession();
     const detached = app.service.submit(session.sessionId, 'detach');
     const observer = detached.events[Symbol.asyncIterator]();
     assert.equal((await observer.next()).value.type, 'execution_start');
@@ -638,8 +638,8 @@ test('共享装配组件下跨Session真实模型调用并发，同Session仍FIF
   });
   const app = await bootstrap(config(), { ...provider(client), logger: quiet });
   try {
-    const first = app.service.createSession();
-    const second = app.service.createSession();
+    const first = await app.service.createSession();
+    const second = await app.service.createSession();
     const a1 = app.service.submit(first.sessionId, 'A1');
     const a2 = app.service.submit(first.sessionId, 'A2');
     await entered.promise;

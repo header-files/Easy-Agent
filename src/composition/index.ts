@@ -1,6 +1,7 @@
 export {
   bootstrap,
   BootstrapError,
+  expandUserPath,
   type BootstrapOptions,
   type EasyAgentApplication,
   type OwnedModelClient,

@@ -12,7 +12,8 @@
 - Model Runtime：模型适配、调用与 Provider 实现，通过既有 Logger 门面记录请求生命周期。
 - Tool Runtime：本地工具注册、参数校验、执行控制和 Model 数据桥接。
 - Workspace / Approval：进程内 Workspace 管理、读写锁、UNSAFE 与审批门控（Phase 2.2）。
-- MCP / Skill，以及 Persistence、Event、Resource、Sandbox 等实际服务，在后续对应阶段开发。
+- Persistence：Transaction Journal、Session Event Log、Workspace Registry、Roll Forward 与 Projection（Phase 2.4）。
+- MCP / Skill，以及 Event Bus、Resource、Sandbox 等实际服务，在后续对应阶段开发。
 
 ## 不负责的内容
 
@@ -22,16 +23,17 @@
 
 ## 当前实现状态
 
-**Logging、Model System（含 Registry/Router 与 Responses）、Tool Runtime、Workspace 与 Approval 已完成，由 Composition 统一装配。**
+**Logging、Model System（含 Registry/Router 与 Responses）、Tool Runtime、Workspace、Approval 与 Persistence 已完成，由 Composition 统一装配。**
 
 - [`logging/index.ts`](logging/index.ts) 提供供应商无关的 Logger 与 Pino 实现，支持四级结构化日志、错误信息、子 logger、环境级别、stderr 和脱敏，行为详见 [Logging README](logging/README.md)。
 - [`model/index.ts`](model/index.ts) 提供 `OpenAICompatibleModelClient`、`OpenAIResponsesModelClient`、`DefaultModelRegistry` 与 `ModelRouter`，行为详见 [Model README](model/README.md)。
 - [`tool/index.ts`](tool/index.ts) 提供 DefaultToolRegistry、DefaultToolExecutor、`GuardedToolExecutor`、内置 FileSystem/Terminal 工具与 Model Bridge；行为详见 [Tool README](tool/README.md)。
 - [`workspace/index.ts`](workspace/index.ts) 提供 WorkspaceManager、AccessCoordinator、PathResolver；详见 [Workspace README](workspace/README.md)。
 - [`approval/index.ts`](approval/index.ts) 提供进程内 ApprovalService；详见 [Approval README](approval/README.md)。
+- [`persistence/index.ts`](persistence/index.ts) 提供 Journal、Coordinator、Roll Forward、Projection 与 PersistenceBridge；详见 [Persistence README](persistence/README.md)。
 - Model 与 Tool 复用既有 Logger，默认提供生命周期日志并允许构造时注入。日志只记录可诊断的白名单元数据；日志故障不改变结果或清理语义。
 
-不新增 Persistence、Event Bus、Docker/OS 沙箱或 Session 日志读写能力。
+不新增 Event Bus、Docker/OS 沙箱或 HTTP 事件订阅。
 
 ## 后续实现范围
 

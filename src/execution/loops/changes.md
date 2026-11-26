@@ -23,3 +23,12 @@
 - 修改原因：独立取消清理审阅复现了 consumer return 挂起及取消监听未及时移除的问题。任意自定义迭代器不合作时无法强制其 finally 完成，不能把这一等待变成 Loop 的隐藏阻塞。
 - 影响范围：默认 Loop 的模型资源清理与原始错误传播，不改模型/工具公共契约，不提前执行任何后续工具。
 - 验证：新增独立不结束 finalizer 回归与原有取消/模型错误测试，最终结果见阶段验收。
+
+### 2026-11-26 — Loop llm/request 与 llm/response 提交门槛
+
+- 主题 ID：`execution.loop.persistence.phase-2.4`
+- 变更前：模型调用前无持久化门槛。
+- 变更后：可选 PersistenceBridge；stream 前提交 `llm/request`，完整响应后提交 `llm/response`（含 toolCalls，无 token delta）；失败则不调用或不继续 Tool。
+- 修改原因：Phase 2.4 严格持久化。
+- 影响范围：DefaultAgentLoop（`DefaultAgentLoopDeps`）；策略与重试语义不变。
+- 现行说明：[README.md](README.md)。

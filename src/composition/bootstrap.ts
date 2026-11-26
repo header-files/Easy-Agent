@@ -25,6 +25,10 @@ import {
   TerminalExecutor,
 } from '../runtime/tool/index.ts';
 import {
+  openPersistenceRuntime,
+  PersistenceBridge,
+} from '../runtime/persistence/index.ts';
+import {
   WorkspaceAccessCoordinator,
   WorkspaceManager,
 } from '../runtime/workspace/index.ts';
@@ -170,24 +174,92 @@ export async function bootstrap(
     const modelRegistry = new DefaultModelRegistry(clients, config.models);
     const router = new ModelRouter(modelRegistry);
 
+    stage = 'persistence';
+    let persistence: PersistenceBridge | undefined;
+    if (config.persistence?.dataDir) {
+      // Same ~/ expansion as workspace.path — bare "~" must not resolve under cwd.
+      const expanded = expandUserPath(config.persistence.dataDir);
+      const dataDir = path.isAbsolute(expanded)
+        ? expanded
+        : path.resolve(process.cwd(), expanded);
+      const runtime = await openPersistenceRuntime(dataDir);
+      persistence = new PersistenceBridge(runtime);
+      releases.push(() => persistence!.dispose());
+      // Durable-ize cold-start INTERRUPTED upgrades before any other commits
+      // (e.g. default Workspace registration) refresh projections.
+      await flushColdStartInterrupts(persistence);
+    }
+
     stage = 'workspace';
     const coordinator = new WorkspaceAccessCoordinator();
     const workspaces = new WorkspaceManager({ coordinator });
     const approval = new ApprovalService();
     let defaultWorkspaceId: string | undefined;
+
+    if (persistence) {
+      for (const projection of persistence.projections.workspaces.values()) {
+        if (projection.removed || !projection.rootPath) continue;
+        workspaces.restore({
+          id: projection.workspaceId,
+          name: projection.name ?? projection.workspaceId,
+          rootPath: projection.rootPath,
+        });
+        if (projection.safety === 'UNSAFE') {
+          coordinator.markUnsafe(projection.workspaceId);
+        }
+        if (defaultWorkspaceId === undefined) {
+          defaultWorkspaceId = projection.workspaceId;
+          workspaces.setDefault(projection.workspaceId);
+        }
+      }
+    }
+
     if (config.workspace?.path) {
       const workspacePath = expandUserPath(config.workspace.path);
-      try {
-        await fs.access(workspacePath);
-        defaultWorkspaceId = (
-          await workspaces.register('default', workspacePath)
-        ).id;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-        // create() uses non-recursive mkdir; ensure parent exists for ~/… paths.
-        await fs.mkdir(path.dirname(workspacePath), { recursive: true });
-        defaultWorkspaceId = (await workspaces.create('default', workspacePath))
-          .id;
+      const existing = workspaces
+        .list()
+        .find((item) => item.rootPath === workspacePath);
+      if (existing) {
+        defaultWorkspaceId = existing.id;
+      } else {
+        try {
+          await fs.access(workspacePath);
+          const registered = await workspaces.register(
+            'default',
+            workspacePath,
+          );
+          defaultWorkspaceId = registered.id;
+          if (persistence) {
+            await persistence.requireWorkspaceRecords([
+              {
+                type: 'workspace/registered',
+                payload: {
+                  workspaceId: registered.id,
+                  name: registered.name,
+                  rootPath: registered.rootPath,
+                },
+              },
+            ]);
+          }
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+          // create() uses non-recursive mkdir; ensure parent exists for ~/… paths.
+          await fs.mkdir(path.dirname(workspacePath), { recursive: true });
+          const created = await workspaces.create('default', workspacePath);
+          defaultWorkspaceId = created.id;
+          if (persistence) {
+            await persistence.requireWorkspaceRecords([
+              {
+                type: 'workspace/registered',
+                payload: {
+                  workspaceId: created.id,
+                  name: created.name,
+                  rootPath: created.rootPath,
+                },
+              },
+            ]);
+          }
+        }
       }
     }
     const terminal = new TerminalExecutor(
@@ -206,6 +278,7 @@ export async function bootstrap(
           manager: workspaces,
           coordinator,
           terminal,
+          ...(persistence === undefined ? {} : { persistence }),
         });
         for (const { spec, handler } of options.tools ?? []) {
           // Explicit bootstrap injections are developer-owned; default never/none
@@ -223,14 +296,45 @@ export async function bootstrap(
           ...(config.workspace?.approvalTimeoutMs === undefined
             ? {}
             : { approvalTimeoutMs: config.workspace.approvalTimeoutMs }),
+          ...(persistence === undefined ? {} : { persistence }),
         });
         stage = 'loop';
-        loop = new DefaultAgentLoop(router, registry, executor);
+        loop = new DefaultAgentLoop(
+          router,
+          registry,
+          executor,
+          persistence === undefined ? {} : { persistence },
+        );
       }
       stage = 'engine';
       const engine = options.engine ?? new DefaultExecutionEngine({ logger });
       stage = 'agent';
-      manager = new DefaultAgentManager(engine, loop, { logger });
+      manager = new DefaultAgentManager(engine, loop, {
+        logger,
+        ...(persistence === undefined ? {} : { persistence }),
+      });
+      if (persistence && manager instanceof DefaultAgentManager) {
+        for (const session of persistence.projections.sessions.values()) {
+          if (session.removed) continue;
+          const messages =
+            persistence.projections.messagesBySession.get(session.sessionId) ??
+            [];
+          const restored = manager.restoreSession({
+            projection: session,
+            messages,
+          });
+          if (session.workspaceId) {
+            // Projection integrity already checked; bind must succeed for writable mode.
+            if (
+              !workspaces.bindSession(session.workspaceId, restored.sessionId)
+            ) {
+              throw new BootstrapError('initialization_failed', 'persistence');
+            }
+          }
+        }
+        // Idempotent: early flush already wrote these when open succeeded.
+        await flushColdStartInterrupts(persistence);
+      }
     }
     stage = 'application';
     const delegate = new DefaultAgentApplicationService(manager, {
@@ -240,6 +344,7 @@ export async function bootstrap(
       approval,
       terminalShell: terminal.getShell(),
       ...(defaultWorkspaceId === undefined ? {} : { defaultWorkspaceId }),
+      ...(persistence === undefined ? {} : { persistence }),
       defaultSessionOptions: {
         config: {
           model: { name: config.defaultModel },
@@ -284,8 +389,31 @@ export async function bootstrap(
   }
 }
 
+/** Persist cold-start INTERRUPTED upgrades as interrupted_detected (idempotent). */
+async function flushColdStartInterrupts(
+  persistence: PersistenceBridge,
+): Promise<void> {
+  const bySession = new Map<string, string[]>();
+  for (const execution of persistence.projections.executions.values()) {
+    if (!execution.needsInterruptPersist) continue;
+    const list = bySession.get(execution.sessionId) ?? [];
+    list.push(execution.executionId);
+    bySession.set(execution.sessionId, list);
+  }
+  for (const [sessionId, ids] of bySession) {
+    await persistence.requireSessionEvents(
+      sessionId,
+      ids.map((executionId) => ({
+        type: 'execution/interrupted_detected',
+        payload: { executionId },
+        executionId,
+      })),
+    );
+  }
+}
+
 /** Expand leading `~` / `~/` to the current user home; leave other paths unchanged. */
-function expandUserPath(input: string): string {
+export function expandUserPath(input: string): string {
   const trimmed = input.trim();
   if (trimmed === '~') return os.homedir();
   if (trimmed.startsWith('~/') || trimmed.startsWith('~' + path.sep)) {

@@ -15,14 +15,34 @@ export interface SessionInfo {
   readonly sessionId: string;
 }
 
+/** Safe view of a committed/restored Execution for CLI and Application queries. */
+export interface ExecutionInfo {
+  readonly executionId: string;
+  readonly sessionId: string;
+  readonly status: string;
+  readonly input?: string;
+  readonly model?: string;
+  readonly interrupted?: boolean;
+  /** Present for completed executions when a durable result was recorded. */
+  readonly result?: unknown;
+  /** Present for failed executions when a durable error was recorded. */
+  readonly error?: unknown;
+}
+
 /** Transport-neutral application entry; queue, context and execution stay in Agent. */
 export interface AgentApplicationService {
-  createSession(options?: CreateSessionOptions): SessionInfo;
+  createSession(options?: CreateSessionOptions): Promise<SessionInfo>;
   listModels(): readonly ModelDescriptor[];
   getSessionModel(sessionId: string): string;
-  setSessionModel(sessionId: string, modelId: string): void;
+  setSessionModel(sessionId: string, modelId: string): Promise<void>;
   listSessions(): SessionSummary[];
   deleteSession(sessionId: string): Promise<boolean>;
+  /** Historical / restored Executions for a Session (Projection when Persistence is on). */
+  listSessionExecutions(sessionId: string): readonly ExecutionInfo[];
+  getExecution(
+    sessionId: string,
+    executionId: string,
+  ): ExecutionInfo | undefined;
   submit(
     sessionId: string,
     input: string,
@@ -37,8 +57,8 @@ export interface AgentApplicationService {
   createWorkspace(name: string, newDirectory: string): Promise<Workspace>;
   listWorkspaces(): readonly Workspace[];
   getWorkspaceStatus(workspaceId: string): WorkspaceStatus;
-  recoverWorkspace(workspaceId: string): void;
-  removeWorkspace(workspaceId: string): boolean;
+  recoverWorkspace(workspaceId: string): Promise<void>;
+  removeWorkspace(workspaceId: string): Promise<boolean>;
   getSessionWorkspaceId(sessionId: string): string | undefined;
   getTerminalShell(): string;
 

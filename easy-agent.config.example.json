@@ -45,5 +45,8 @@
   "workspace": {
     "path": "./workspace",
     "approvalTimeoutMs": 120000
+  },
+  "persistence": {
+    "dataDir": "./data"
   }
 }

@@ -84,3 +84,59 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 变更前：`command` 原文完整输出。
 - 变更后：启发式脱敏展示 + `argsHash`；见 [CLI changes](cli/changes.md) 与 Phase 2.2 §14 设计例外表。
 - 修改原因：三次复查要求明确取舍。
+
+### 2026-11-26 — Application 接入 Workspace Registry 与恢复
+
+- 主题 ID：`application.persistence.phase-2.4`
+- 变更前：Workspace 注册/恢复仅内存；remove/recover 同步。
+- 变更后：可选 PersistenceBridge；注册/删除/恢复走 Registry 事务；`recoverWorkspace`/`removeWorkspace` 改为 async；删除前检查 Projection 引用索引。
+- 修改原因：Phase 2.4 Workspace 独立 Registry 与 fail-closed 恢复。
+- 影响范围：DefaultAgentApplicationService、CLI、lifecycle 包装。
+- 验证：`tests/phase-2.4-persistence.test.ts`。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — createSession 锁内重检与登记失败回滚
+
+- 主题 ID：`application.persistence.phase-2.4`
+- 变更前：createSession 在共享锁外检查 Workspace；register/createWorkspace 在 Registry 提交失败后仍留在 WorkspaceManager。
+- 变更后：共享锁内（及 bind 前）再次 `assertWorkspaceUsable`；Registry 提交失败时 `rollbackWorkspace` 从内存移除。
+- 修改原因：复查复现删除与创建并发可指向已删 Workspace；登记失败导致内存与持久化不一致。
+- 影响范围：`default-agent-application-service.ts`。
+- 验证：phase-2.4 并发创建/删除与登记回滚用例；全仓 311 通过。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 已提交登记不因 Projection 刷新失败回滚
+
+- 主题 ID：`application.persistence.phase-2.4`
+- 变更前：register/createWorkspace 对任何异常回滚内存。
+- 变更后：仅在非 `durableCommitted` 失败时回滚；Journal 已 COMMITTED 则保留内存可见性并返回成功。
+- 修改原因：复查复现「接口失败且列表为空、重启却出现」。
+- 验证：phase-2.4「登记已提交但 Projection 刷新失败时保留内存可见性」。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — commit_uncertain 登记保留内存；文档对齐 Phase 2.4
+
+- 主题 ID：`application.persistence.phase-2.4`
+- 变更前：commit_uncertain 与确定失败一样回滚 Workspace 内存；README 仍称不实现 Event Log。
+- 变更后：uncertain 保留内存可见性并报 operation_failed；README/须知改为引用 Phase 2.4。
+- 修改原因：复查不确定提交被当未发生；文档过时。
+- 验证：phase-2.4「COMMIT_UNCERTAIN 登记不得回滚内存可见性」。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — Execution 查询与 CLI 继续已恢复 Session
+
+- 主题 ID：`application.persistence.phase-2.4`
+- 变更前：无历史 Execution 查询；CLI 启动总是新建 Session，无切回入口。
+- 变更后：`listSessionExecutions` / `getExecution`；CLI `/sessions`、`/session`、`/executions`；启动优先继续已恢复 Session。
+- 修改原因：对照 phase-2.4 §11 集成边界。
+- 验证：phase-2.4 Execution 查询用例；cli `/session` 用例。
+- 现行说明：[README.md](README.md)、[CLI README](cli/README.md)。
+
+### 2026-11-26 — recoverWorkspace 拒绝覆盖 live Terminal intent
+
+- 主题 ID：`application.persistence.phase-2.4`
+- 变更前：`recoverWorkspace` 将全部 openIntents 写入 `workspace/recovered`，不检查活动是否仍在本进程运行。
+- 变更后：若 Coordinator 对该 Workspace 仍有 live Terminal 活动则 `operation_failed`，不提交 recovered。
+- 修改原因：复查复现运行中 intent 被提前人工恢复，重启呈 NORMAL 且未结束活动为 0。
+- 验证：phase-2.4「运行中 Terminal intent 拒绝人工恢复」。
+- 现行说明：[README.md](README.md)。

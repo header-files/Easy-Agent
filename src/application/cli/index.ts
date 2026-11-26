@@ -1,1 +1,6 @@
-export { runCli, type RunCliOptions, type CliSignalSource } from './run-cli.ts';
+export {
+  runCli,
+  resolveSessionIdQuery,
+  type RunCliOptions,
+  type CliSignalSource,
+} from './run-cli.ts';

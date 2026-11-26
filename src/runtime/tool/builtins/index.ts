@@ -1,8 +1,9 @@
-import type { DefaultToolRegistry } from '../default-tool-registry.ts';
+import type { PersistenceBridge } from '../../persistence/index.ts';
 import type {
   WorkspaceAccessCoordinator,
   WorkspaceManager,
 } from '../../workspace/index.ts';
+import type { DefaultToolRegistry } from '../default-tool-registry.ts';
 import { createFilesystemTools } from './filesystem.ts';
 import { createTerminalTool } from './terminal.ts';
 import {
@@ -30,6 +31,7 @@ export interface RegisterBuiltinToolsOptions {
   manager: WorkspaceManager;
   coordinator: WorkspaceAccessCoordinator;
   terminal?: TerminalExecutor | TerminalExecutorOptions;
+  persistence?: PersistenceBridge;
 }
 
 export function registerBuiltinTools(
@@ -47,6 +49,7 @@ export function registerBuiltinTools(
     options.manager,
     options.coordinator,
     terminal,
+    options.persistence,
   );
   registry.register(term.spec, term.handler, term.meta);
   return terminal;

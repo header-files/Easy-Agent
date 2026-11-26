@@ -23,12 +23,13 @@ const result = await execution.result;
 
 构造选项：
 
-| 选项                  | 默认值与语义                                                            |
-| --------------------- | ----------------------------------------------------------------------- |
-| `eventBufferCapacity` | `512`，每提交尚未消费的事件条数上限；接受大于等于 1 的安全整数          |
-| `sessionIdFactory`    | `randomUUID`；同步返回非空字符串                                        |
-| `executionIdFactory`  | `randomUUID`；同步返回非空字符串                                        |
-| `logger`              | 统一 Logger 门面的 `agent.session` 子 Logger；省略时创建同名默认 Logger |
+| 选项                  | 默认值与语义                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `eventBufferCapacity` | `512`，每提交尚未消费的事件条数上限；接受大于等于 1 的安全整数                                                                |
+| `sessionIdFactory`    | `randomUUID`；同步返回非空字符串                                                                                              |
+| `executionIdFactory`  | `randomUUID`；同步返回非空字符串                                                                                              |
+| `logger`              | 统一 Logger 门面的 `agent.session` 子 Logger；省略时创建同名默认 Logger                                                       |
+| `persistence`         | 可选 `PersistenceBridge`；启用后 submit 经 PENDING_PERSIST 再入队，并支持 `restoreSession`（恢复 messages 与 `context.data`） |
 
 Manager 在本实例内保留已发放 ID 的字符串集合，拒绝重复 ID，删除 Session 后也不复用旧值；不保留已结算的内部任务。自定义 ID 工厂须由调用方保证跨 Manager、跨共享 Engine 的唯一性；默认 UUID 不引入额外的全局注册状态。工厂失败或返回非法/重复值时同步抛出固定错误，不将任务入队。
 
@@ -36,7 +37,7 @@ Manager 在本实例内保留已发放 ID 的字符串集合，拒绝重复 ID�
 
 - `createSession()` 同步注册 Session；`getSession()` 对存活 ID 返回同一实例。创建时可固定自定义 Loop、上下文和默认配置；未指定上下文为 `{ messages: [] }`。
 - `listSessions()` 返回按创建顺序排列的独立摘要，包含创建时间、队列长度及当前运行 ID。摘要不暴露内部 Map 或队列。
-- `submit()` 同步校验、生成 ID、入队并返回冻结的句柄。Session 自己启动单个调度泵，唯一地持续消费 Engine；外部何时读取事件或等待结果均不改变 FIFO。
+- `submit()` 同步校验、生成 ID 并返回冻结的句柄。无持久化时立即入队；启用 Persistence 时先 `PENDING_PERSIST`（同事务提交 user/message + execution/created）成功后再入队。Session 自己启动单个调度泵，唯一地持续消费 Engine；外部何时读取事件或等待结果均不改变 FIFO。
 - 同 Session 仅有一个执行中的任务，不同 Session 的泵可并发。每个任务真正出队时才读取最新已提交上下文，构建独立输入、配置、signal 和 `{ sessionId, executionId }` 元数据。
 - 有运行中或排队任务时，`deleteSession()` 返回 `false`。空闲删除后返回 `true`，Manager 释放管理引用；仍被外部持有的旧 Session 拒绝新的提交，已结算句柄不受影响。
 
@@ -58,7 +59,7 @@ Agent 不重复拼接当前输入，不解析模型策略，不新增 Loop 次�
 
 自定义 Loop 可以完全省略 model。创建级 `config.model` 沿用 `AgentLoopContext` 的必需 name 形状；提交级 `model: {}` 表示无变化。提交若仅提供 parameters，却无可继承或显式提供的 model name，会同步安全拒绝，避免构造不符合既有契约的上下文。默认 Loop 的模型名和专属扩展校验仍由 Loop 负责；已注册模型校验由 Application 在提交/切换边界完成。
 
-快照延续既有 Engine 的 unknown 值边界：普通对象/数组、循环与别名、Date、Map、Set、RegExp、ArrayBuffer 和 typed view 复制数据图，保留 BigInt、Symbol、undefined 等值。函数、闭包、带未知内部状态的实例和 Proxy 保留为外部能力引用；未知 accessor 按描述符保留，不主动调用 getter 或 `toJSON`。这些 opaque 能力的内部可变状态无法通用隔离，调用方须自行管理。此边界保留已有 CustomLoop 契约语义，不要求 JSON 化。上下文 `data`、结果 `details` 的不透明数据不因 Agent 调度而被删减。
+快照延续既有 Engine 的 unknown 值边界：普通对象/数组、循环与别名、Date、Map、Set、RegExp、ArrayBuffer 和 typed view 复制数据图，保留 BigInt、Symbol、undefined 等值。函数、闭包、带未知内部状态的实例和 Proxy 保留为外部能力引用；未知 accessor 按描述符保留，不主动调用 getter 或 `toJSON`。这些 opaque 能力的内部可变状态无法通用隔离，调用方须自行管理。此边界保留已有 CustomLoop 契约语义，不要求 JSON 化。上下文 `data`、结果 `details` 的不透明数据不因 Agent 调度而被删减。启用 Persistence 时，写入 Event Log 的 `context.data` 必须是 JSON 安全子集；`Date`/`Map` 等无法无损落盘的值会在提交边界被拒绝。
 
 ## 观察流与缓冲
 

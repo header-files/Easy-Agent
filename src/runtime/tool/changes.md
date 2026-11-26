@@ -57,3 +57,30 @@
 - 修改原因：五次复查——不得仅凭主进程退出认定后代退出。
 - 影响范围：`terminal-executor.ts`。
 - 验证：`tests/terminal-tool.test.ts`（后台 sleep 写 marker）。
+
+### 2026-11-26 — GuardedTool / Terminal 严格持久化
+
+- 主题 ID：`runtime.tool.persistence.phase-2.4`
+- 变更前：工具与 Terminal 无 Event Log / Registry 门槛。
+- 变更后：GuardedTool 提交 tool/call、approval/*、tool/result；Terminal 启动前 terminal_intent、结束后 settled，清理不确定写 workspace/unsafe。
+- 修改原因：Phase 2.4 提交门槛与 UNSAFE 跨重启。
+- 影响范围：guarded-tool-executor、terminal 内置工具、registerBuiltinTools。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 审批拒绝/超时的 resolved 持久化失败不再吞掉
+
+- 主题 ID：`runtime.tool.persistence.phase-2.4`
+- 变更前：approval/resolved（拒绝/超时）写入失败被 catch 吞掉，仍返回普通工具错误。
+- 变更后：resolved 必须先 COMMITTED；持久化失败向上抛出，停止该执行。
+- 修改原因：复查指出违反严格提交门槛。
+- 验证：phase-2.4「审批拒绝的 approval/resolved 持久化失败须 fail-closed」。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — Terminal live 活动登记
+
+- 主题 ID：`runtime.tool.persistence.phase-2.4`
+- 变更前：intent COMMITTED 后至 settled 期间不向 Coordinator 登记运行中活动。
+- 变更后：intent 提交后 `beginTerminalActivity`，Handler `finally` 中 `endTerminalActivity`。
+- 修改原因：支撑 Application 拒绝覆盖仍在运行的 Terminal intent。
+- 影响范围：`builtins/terminal.ts`。
+- 现行说明：[README.md](README.md)。

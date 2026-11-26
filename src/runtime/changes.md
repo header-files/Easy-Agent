@@ -97,3 +97,12 @@ Phase 0 创建说明文档建立了职责基线；实际能力变更按时间追
 - 修改原因：Phase 2.2 本地受控执行。
 - 影响范围：Runtime 父说明及子模块；详见各子模块 changes。
 - 现行说明：[README.md](README.md)、[Workspace](workspace/README.md)、[Approval](approval/README.md)、[Tool](tool/README.md)。
+
+### 2026-11-26 — Phase 2.4 Persistence 能力域
+
+- 主题 ID：`runtime.persistence.phase-2.4`
+- 变更前：无 Journal / Event Log；UNSAFE 仅内存。
+- 变更后：新增 `persistence/` 子域（Journal、Coordinator、Roll Forward、Projection、Bridge）；Tool/Terminal 接入严格提交门槛。
+- 修改原因：Phase 2.4 本地可靠持久化与冷启动重建。
+- 影响范围：Runtime 父说明及 persistence/tool/workspace；详见 [persistence/changes.md](persistence/changes.md)。
+- 现行说明：[README.md](README.md)、[Persistence README](persistence/README.md)。

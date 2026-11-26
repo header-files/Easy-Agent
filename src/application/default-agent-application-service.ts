@@ -16,6 +16,12 @@ import type {
   ApprovalRequest,
   ApprovalService,
 } from '../runtime/approval/index.ts';
+import {
+  isCommitUncertain,
+  isDurableCommittedFailure,
+  type ExecutionProjection,
+  type PersistenceBridge,
+} from '../runtime/persistence/index.ts';
 import type {
   Workspace,
   WorkspaceAccessCoordinator,
@@ -25,6 +31,7 @@ import type {
 import {
   AgentApplicationError,
   type AgentApplicationService,
+  type ExecutionInfo,
   type SessionInfo,
 } from './agent-application-service.ts';
 
@@ -37,6 +44,7 @@ export interface DefaultAgentApplicationServiceOptions {
   approval?: ApprovalService;
   terminalShell?: string;
   defaultWorkspaceId?: string;
+  persistence?: PersistenceBridge;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -155,6 +163,7 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
   private readonly approval: ApprovalService | undefined;
   private readonly terminalShell: string;
   private readonly defaultWorkspaceId: string | undefined;
+  private readonly persistence: PersistenceBridge | undefined;
 
   constructor(
     manager: AgentManager,
@@ -184,9 +193,10 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     this.approval = options.approval;
     this.terminalShell = options.terminalShell ?? '';
     this.defaultWorkspaceId = options.defaultWorkspaceId;
+    this.persistence = options.persistence;
   }
 
-  createSession(options?: CreateSessionOptions): SessionInfo {
+  async createSession(options?: CreateSessionOptions): Promise<SessionInfo> {
     validateCreate(options);
     const modelId =
       options?.config?.model?.name ?? this.defaults.config?.model?.name;
@@ -195,21 +205,45 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
       options?.workspaceId ??
       this.defaults.workspaceId ??
       this.defaultWorkspaceId;
-    if (workspaceId !== undefined) {
-      if (!this.workspaces?.get(workspaceId)) invalid();
-    }
-    try {
+    const assertWorkspaceUsable = (id: string): void => {
+      if (!this.workspaces?.get(id)) invalid();
+      const projection = this.persistence?.projections.workspaces.get(id);
+      if (projection?.removed) invalid();
+    };
+    if (workspaceId !== undefined) assertWorkspaceUsable(workspaceId);
+    const create = async (): Promise<SessionInfo> => {
+      // Re-validate under the lifecycle lock: delete may have completed while waiting.
+      if (workspaceId !== undefined) assertWorkspaceUsable(workspaceId);
       const session = this.manager.createSession({
         ...this.defaults,
         ...options,
         ...(workspaceId === undefined ? {} : { workspaceId }),
         config: mergeConfig(this.defaults.config, options?.config),
       });
+      if (
+        this.persistence &&
+        'ensureCreated' in session &&
+        typeof (session as { ensureCreated?: () => Promise<void> })
+          .ensureCreated === 'function'
+      ) {
+        await (
+          session as { ensureCreated: () => Promise<void> }
+        ).ensureCreated();
+      }
       if (workspaceId !== undefined) {
+        // Workspace may have been removed if lock was not held; re-check before bind.
+        assertWorkspaceUsable(workspaceId);
         this.workspaces?.bindSession(workspaceId, session.sessionId);
       }
       return Object.freeze({ sessionId: session.sessionId });
-    } catch {
+    };
+    try {
+      if (this.persistence && workspaceId !== undefined) {
+        return await this.persistence.lifecycle.withShared(workspaceId, create);
+      }
+      return await create();
+    } catch (error) {
+      if (error instanceof AgentApplicationError) throw error;
       throw new AgentApplicationError('operation_failed');
     }
   }
@@ -233,7 +267,7 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     }
   }
 
-  setSessionModel(sessionId: string, modelId: string): void {
+  async setSessionModel(sessionId: string, modelId: string): Promise<void> {
     if (
       typeof modelId !== 'string' ||
       !modelId.trim() ||
@@ -242,7 +276,7 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
       invalid();
     const session = this.session(sessionId);
     try {
-      session.setModel(modelId);
+      await session.setModel(modelId);
     } catch {
       throw new AgentApplicationError('operation_failed');
     }
@@ -265,6 +299,37 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
         this.workspaces?.unbindSession(workspaceId, sessionId);
       }
       return removed;
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  listSessionExecutions(sessionId: string): readonly ExecutionInfo[] {
+    this.session(sessionId);
+    if (!this.persistence) return Object.freeze([]);
+    try {
+      return Object.freeze(
+        [...this.persistence.projections.executions.values()]
+          .filter((item) => item.sessionId === sessionId)
+          .map((item) => toExecutionInfo(item)),
+      );
+    } catch {
+      throw new AgentApplicationError('operation_failed');
+    }
+  }
+
+  getExecution(
+    sessionId: string,
+    executionId: string,
+  ): ExecutionInfo | undefined {
+    validId(executionId);
+    this.session(sessionId);
+    if (!this.persistence) return undefined;
+    try {
+      const execution =
+        this.persistence.projections.executions.get(executionId);
+      if (!execution || execution.sessionId !== sessionId) return undefined;
+      return toExecutionInfo(execution);
     } catch {
       throw new AgentApplicationError('operation_failed');
     }
@@ -307,10 +372,13 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     existingDirectory: string,
   ): Promise<Workspace> {
     if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    let workspace: Workspace | undefined;
     try {
-      return await this.workspaces.register(name, existingDirectory);
-    } catch {
-      throw new AgentApplicationError('operation_failed');
+      workspace = await this.workspaces.register(name, existingDirectory);
+      await this.persistWorkspaceRegistered(workspace);
+      return workspace;
+    } catch (error) {
+      return this.finishWorkspacePersist(workspace, error);
     }
   }
 
@@ -319,11 +387,54 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     newDirectory: string,
   ): Promise<Workspace> {
     if (!this.workspaces) throw new AgentApplicationError('operation_failed');
+    let workspace: Workspace | undefined;
     try {
-      return await this.workspaces.create(name, newDirectory);
-    } catch {
+      workspace = await this.workspaces.create(name, newDirectory);
+      await this.persistWorkspaceRegistered(workspace);
+      return workspace;
+    } catch (error) {
+      return this.finishWorkspacePersist(workspace, error);
+    }
+  }
+
+  private finishWorkspacePersist(
+    workspace: Workspace | undefined,
+    error: unknown,
+  ): Workspace {
+    if (workspace && isDurableCommittedFailure(error)) {
+      // Registry COMMITTED; keep memory visible to match durable truth.
+      return workspace;
+    }
+    if (workspace && isCommitUncertain(error)) {
+      // Ops may already be on disk; do not roll back as "registration absent".
       throw new AgentApplicationError('operation_failed');
     }
+    if (workspace) this.rollbackWorkspace(workspace.id);
+    throw new AgentApplicationError('operation_failed');
+  }
+
+  private rollbackWorkspace(workspaceId: string): void {
+    try {
+      this.workspaces?.remove(workspaceId);
+    } catch {
+      /* Best effort: keep fail-closed API result. */
+    }
+  }
+
+  private async persistWorkspaceRegistered(
+    workspace: Workspace,
+  ): Promise<void> {
+    if (!this.persistence) return;
+    await this.persistence.requireWorkspaceRecords([
+      {
+        type: 'workspace/registered',
+        payload: {
+          workspaceId: workspace.id,
+          name: workspace.name,
+          rootPath: workspace.rootPath,
+        },
+      },
+    ]);
   }
 
   listWorkspaces(): readonly Workspace[] {
@@ -345,20 +456,64 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     }
   }
 
-  recoverWorkspace(workspaceId: string): void {
+  async recoverWorkspace(workspaceId: string): Promise<void> {
     validId(workspaceId);
     if (!this.coordinator || !this.workspaces?.get(workspaceId)) {
       throw new AgentApplicationError('operation_failed');
     }
+    // Refuse while any Terminal intent is still running in this process.
+    if (this.coordinator.listLiveTerminalActivities(workspaceId).length > 0) {
+      throw new AgentApplicationError('operation_failed');
+    }
+    if (this.persistence) {
+      try {
+        const projection =
+          this.persistence.projections.workspaces.get(workspaceId);
+        const covered = projection ? [...projection.openIntents] : [];
+        await this.persistence.requireWorkspaceRecords([
+          {
+            type: 'workspace/recovered',
+            payload: {
+              workspaceId,
+              coveredActivityIds: covered,
+            },
+          },
+        ]);
+      } catch {
+        throw new AgentApplicationError('operation_failed');
+      }
+    }
     this.coordinator.recover(workspaceId);
   }
 
-  removeWorkspace(workspaceId: string): boolean {
+  async removeWorkspace(workspaceId: string): Promise<boolean> {
     validId(workspaceId);
     if (!this.workspaces) throw new AgentApplicationError('operation_failed');
     try {
+      if (this.persistence) {
+        return await this.persistence.lifecycle.withExclusive(
+          workspaceId,
+          async () => {
+            const refs =
+              this.persistence!.projections.workspaceSessionRefs.get(
+                workspaceId,
+              );
+            if (refs && refs.size > 0) {
+              throw new AgentApplicationError('operation_failed');
+            }
+            await this.persistence!.requireWorkspaceRecords([
+              {
+                type: 'workspace/removed',
+                payload: { workspaceId },
+              },
+            ]);
+            return this.workspaces!.remove(workspaceId);
+          },
+        );
+      }
       return this.workspaces.remove(workspaceId);
-    } catch {
+    } catch (error) {
+      if (error instanceof AgentApplicationError) throw error;
       throw new AgentApplicationError('operation_failed');
     }
   }
@@ -402,4 +557,19 @@ export class DefaultAgentApplicationService implements AgentApplicationService {
     if (!session) throw new AgentApplicationError('session_not_found');
     return session;
   }
+}
+
+function toExecutionInfo(item: ExecutionProjection): ExecutionInfo {
+  return Object.freeze({
+    executionId: item.executionId,
+    sessionId: item.sessionId,
+    status: item.status,
+    ...(item.input === undefined ? {} : { input: item.input }),
+    ...(item.model === undefined ? {} : { model: item.model }),
+    ...(item.interrupted === undefined
+      ? {}
+      : { interrupted: item.interrupted }),
+    ...(item.result === undefined ? {} : { result: item.result }),
+    ...(item.error === undefined ? {} : { error: item.error }),
+  });
 }

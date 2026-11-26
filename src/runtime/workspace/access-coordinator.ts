@@ -25,6 +25,8 @@ export interface RunAccessOptions<T> {
 /** Per-workspace read/write lock with write preference and UNSAFE gating. */
 export class WorkspaceAccessCoordinator {
   private readonly gates = new Map<string, Gate>();
+  /** In-process Terminal activities with committed intent but not yet settled. */
+  private readonly liveTerminalActivities = new Map<string, Set<string>>();
 
   safety(workspaceId: string): WorkspaceSafety {
     return this.gate(workspaceId).safety;
@@ -41,6 +43,35 @@ export class WorkspaceAccessCoordinator {
     gate.safety = 'NORMAL';
   }
 
+  /** Mark a Terminal activity as still running after intent COMMITTED. */
+  beginTerminalActivity(workspaceId: string, activityId: string): void {
+    if (
+      typeof workspaceId !== 'string' ||
+      workspaceId.length === 0 ||
+      typeof activityId !== 'string' ||
+      activityId.length === 0
+    ) {
+      throw new WorkspaceError('invalid_request');
+    }
+    const set =
+      this.liveTerminalActivities.get(workspaceId) ?? new Set<string>();
+    set.add(activityId);
+    this.liveTerminalActivities.set(workspaceId, set);
+  }
+
+  /** Clear live mark when the Terminal handler finishes (settled or aborted). */
+  endTerminalActivity(workspaceId: string, activityId: string): void {
+    const set = this.liveTerminalActivities.get(workspaceId);
+    if (!set) return;
+    set.delete(activityId);
+    if (set.size === 0) this.liveTerminalActivities.delete(workspaceId);
+  }
+
+  listLiveTerminalActivities(workspaceId: string): readonly string[] {
+    const set = this.liveTerminalActivities.get(workspaceId);
+    return set === undefined ? [] : [...set];
+  }
+
   forget(workspaceId: string): void {
     const gate = this.gates.get(workspaceId);
     if (!gate) return;
@@ -49,6 +80,7 @@ export class WorkspaceAccessCoordinator {
       new WorkspaceError('not_found', 'Workspace was removed.'),
     );
     this.gates.delete(workspaceId);
+    this.liveTerminalActivities.delete(workspaceId);
   }
 
   async run<T>(options: RunAccessOptions<T>): Promise<T> {

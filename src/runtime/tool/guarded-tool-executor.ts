@@ -11,6 +11,10 @@ import { ApprovalError, type ApprovalService } from '../approval/index.ts';
 import { createLogger, type Logger, type LogLevel } from '../logging/index.ts';
 import { safeFields } from '../logging/redact.ts';
 import {
+  isPersistenceFailure,
+  type PersistenceBridge,
+} from '../persistence/index.ts';
+import {
   WorkspaceError,
   type WorkspaceAccessCoordinator,
 } from '../workspace/index.ts';
@@ -32,6 +36,7 @@ export interface GuardedToolExecutorOptions {
   approvalTimeoutMs?: number;
   /** After timeout/abort, wait this long for the handler before marking UNSAFE. */
   handlerSettleGraceMs?: number;
+  persistence?: PersistenceBridge;
 }
 
 const errorMessages: Record<ToolErrorCode, string> = {
@@ -66,6 +71,7 @@ export class GuardedToolExecutor implements ToolExecutor {
   private readonly defaultApprovalTimeoutMs: number | undefined;
   private readonly handlerSettleGraceMs: number;
   private readonly logger: Logger | undefined;
+  private readonly persistence: PersistenceBridge | undefined;
 
   constructor(
     registry: DefaultToolRegistry,
@@ -76,6 +82,7 @@ export class GuardedToolExecutor implements ToolExecutor {
     this.coordinator = options.coordinator;
     this.defaultApprovalTimeoutMs = options.approvalTimeoutMs ?? 120_000;
     this.handlerSettleGraceMs = options.handlerSettleGraceMs ?? 5_000;
+    this.persistence = options.persistence;
     try {
       this.logger =
         options.logger === undefined
@@ -83,6 +90,36 @@ export class GuardedToolExecutor implements ToolExecutor {
           : options.logger.child('runtime.tool.guarded');
     } catch {
       this.logger = undefined;
+    }
+  }
+
+  private async persistSession(
+    sessionId: string | undefined,
+    executionId: string | undefined,
+    type: string,
+    payload: unknown,
+  ): Promise<void> {
+    if (!this.persistence || !sessionId) return;
+    await this.persistence.requireSessionEvents(sessionId, [
+      {
+        type,
+        payload,
+        ...(executionId === undefined ? {} : { executionId }),
+      },
+    ]);
+  }
+
+  private async persistUnsafe(workspaceId: string): Promise<void> {
+    if (!this.persistence) return;
+    try {
+      await this.persistence.requireWorkspaceRecords([
+        {
+          type: 'workspace/unsafe',
+          payload: { workspaceId },
+        },
+      ]);
+    } catch {
+      /* In-memory UNSAFE already applied; keep fail-closed process state. */
     }
   }
 
@@ -168,6 +205,22 @@ export class GuardedToolExecutor implements ToolExecutor {
         return result;
       }
 
+      try {
+        await this.persistSession(
+          executionOptions.sessionId,
+          executionOptions.executionId,
+          'tool/call',
+          {
+            toolCallId,
+            name,
+            argumentsJson,
+          },
+        );
+      } catch (error) {
+        if (isPersistenceFailure(error)) throw error;
+        throw error;
+      }
+
       if (meta.approval === 'always') {
         if (this.approval === undefined) {
           result = errorResult(
@@ -181,6 +234,15 @@ export class GuardedToolExecutor implements ToolExecutor {
         const approvalTimeout =
           executionOptions.approvalTimeoutMs ?? this.defaultApprovalTimeoutMs;
         try {
+          await this.persistSession(
+            executionOptions.sessionId,
+            executionOptions.executionId,
+            'approval/requested',
+            {
+              toolCallId,
+              toolName: name,
+            },
+          );
           const approved = await this.approval.require({
             toolCallId,
             toolName: name,
@@ -196,6 +258,16 @@ export class GuardedToolExecutor implements ToolExecutor {
               ? {}
               : { timeoutMs: approvalTimeout }),
           });
+          await this.persistSession(
+            executionOptions.sessionId,
+            executionOptions.executionId,
+            'approval/resolved',
+            {
+              approvalId: approved.id,
+              toolCallId,
+              status: approved.status,
+            },
+          );
           // Handler must use the frozen approved snapshot, not the mutable parse object.
           args = approved.arguments as Record<string, unknown>;
         } catch (error) {
@@ -206,6 +278,17 @@ export class GuardedToolExecutor implements ToolExecutor {
                 'Tool execution was aborted.',
               );
             }
+            // Reject/timeout must be durably recorded before returning a tool error;
+            // persistence failure stops the execution (strict commit gate).
+            await this.persistSession(
+              executionOptions.sessionId,
+              executionOptions.executionId,
+              'approval/resolved',
+              {
+                toolCallId,
+                status: error.code,
+              },
+            );
             result = errorResult(
               toolCallId,
               name,
@@ -264,6 +347,7 @@ export class GuardedToolExecutor implements ToolExecutor {
                   this.coordinator !== undefined
                 ) {
                   this.coordinator.markUnsafe(executionOptions.workspaceId);
+                  void this.persistUnsafe(executionOptions.workspaceId);
                 }
               },
             },
@@ -282,6 +366,37 @@ export class GuardedToolExecutor implements ToolExecutor {
         } finally {
           control.dispose();
         }
+      };
+
+      const finishWithResult = async (
+        value: ToolResult,
+      ): Promise<ToolResult> => {
+        try {
+          await this.persistSession(
+            executionOptions.sessionId,
+            executionOptions.executionId,
+            'tool/result',
+            {
+              toolCallId,
+              name,
+              status: value.status,
+              content: value.content,
+              ...(value.status === 'error'
+                ? {
+                    error: {
+                      code: value.error.code,
+                      message: value.error.message,
+                    },
+                  }
+                : {}),
+            },
+          );
+        } catch (error) {
+          // Tool side effects may already have happened; fail closed without retry.
+          if (isPersistenceFailure(error)) throw error;
+          throw error;
+        }
+        return value;
       };
 
       if (meta.workspaceAccess === 'none' || this.coordinator === undefined) {
@@ -306,7 +421,7 @@ export class GuardedToolExecutor implements ToolExecutor {
           );
           return result;
         }
-        result = await runHandler();
+        result = await finishWithResult(await runHandler());
         return result;
       }
 
@@ -321,14 +436,16 @@ export class GuardedToolExecutor implements ToolExecutor {
       }
 
       try {
-        result = await this.coordinator.run({
-          workspaceId: executionOptions.workspaceId,
-          access: meta.workspaceAccess,
-          ...(executionOptions.signal === undefined
-            ? {}
-            : { signal: executionOptions.signal }),
-          task: runHandler,
-        });
+        result = await finishWithResult(
+          await this.coordinator.run({
+            workspaceId: executionOptions.workspaceId,
+            access: meta.workspaceAccess,
+            ...(executionOptions.signal === undefined
+              ? {}
+              : { signal: executionOptions.signal }),
+            task: runHandler,
+          }),
+        );
         return result;
       } catch (error) {
         if (error instanceof WorkspaceError) {
@@ -337,6 +454,9 @@ export class GuardedToolExecutor implements ToolExecutor {
               'aborted',
               'Tool execution was aborted.',
             );
+          }
+          if (error.code === 'unsafe') {
+            void this.persistUnsafe(executionOptions.workspaceId);
           }
           result = errorResult(
             toolCallId,
@@ -356,6 +476,7 @@ export class GuardedToolExecutor implements ToolExecutor {
         });
         throw error;
       }
+      if (isPersistenceFailure(error)) throw error;
       result = errorResult(toolCallId, name, 'execution_failed');
       return result;
     } finally {

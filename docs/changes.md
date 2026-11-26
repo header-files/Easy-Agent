@@ -338,3 +338,96 @@
 - 变更前：Bootstrap 默认注册纯计算 `add`。
 - 变更后：删除演示工具；默认仅内置 FileSystem/Terminal。
 - 模块记录：[Composition](../src/composition/changes.md)。
+
+### 2026-11-26 — Phase 2.4 Persistence / Event Log / 冷启动重建落地
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：Session/Execution/Workspace 状态仅进程内；无 Journal 与 Event Replay。
+- 变更后：按十项设计决策实现 Runtime Persistence、Session/Tool/Workspace 严格提交门槛、冷启动 Projection 恢复与中断识别；Phase 2.3 HTTP/SSE 仍暂缓；不实现自动 Loop 恢复。
+- 修改原因：用户授权 Phase 2.4 开发与验收。
+- 影响范围：runtime/persistence、agent、application、composition、execution/loops、tool、workspace；配置 `persistence.dataDir`；测试与模块文档。
+- 验证：`node --test tests/persistence-journal.test.ts tests/phase-2.4-persistence.test.ts` 与全仓回归（darwin）；Windows/Linux 未在本机验证。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Agent](../src/agent/changes.md)、[Application](../src/application/changes.md)、[Composition](../src/composition/changes.md)、[Loop](../src/execution/loops/changes.md)、[Tool](../src/runtime/tool/changes.md)、[Workspace](../src/runtime/workspace/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：锁序、幽灵取消、全局冻结、回滚与权限
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：createSession 锁外校验 Workspace；PENDING_PERSIST 取消可留下无终态创建事实；Journal 故障仅冻 scope；Registry 失败后内存仍可见；dataDir 755/644；部分 README 过时。
+- 变更后：锁内重检 Workspace；取消与 persistThenQueue 协调（未落盘则跳过创建，已落盘则写 cancel 终态）；Journal 故障全局冻结；登记失败回滚内存；`0700`/`0600`；Persistence/Composition 现行说明对齐。
+- 修改原因：用户稳定复现五项未覆盖场景并要求文档同步。
+- 影响范围：application、agent、runtime/persistence、composition 文档与测试。
+- 验证：全仓 `npm test` **311/311**；`tsc` / `lint` / `format` 通过（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Agent](../src/agent/changes.md)、[Application](../src/application/changes.md)、[Composition](../src/composition/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：删除事实、忙碌门槛、durableCommitted、完整恢复
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：Session 删除不落盘；PENDING_PERSIST 可被空闲删除；COMMITTED 后刷新失败误回滚；创建已提交+取消无终态；session/created 不保存初始上下文/参数/extensions；architecture/conventions/Application 示例过时。
+- 变更后：`session/deleted`；PENDING_PERSIST 忙碌；`durableCommitted` 区分提交后失败；取消/失败写终态；创建载荷与 restore 补全；文档阶段表述对齐 Phase 2.4。
+- 修改原因：用户再次稳定复现五项场景。
+- 影响范围：persistence、agent、application、composition bootstrap、docs。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Agent](../src/agent/changes.md)、[Application](../src/application/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：路径逃逸、权威 context、uncertain、settling
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：Session ID 可写出 dataDir；updatedContext 替换重启失效；COMMIT_UNCERTAIN 被当确定失败回滚；终态落盘窗口可删 Session；文档仍称无 Event Log。
+- 变更后：安全 Session 存储键；completed 权威 context 替换；uncertain 不 revive/不回滚；`durableSettling`；Application/conventions 对齐。
+- 修改原因：用户稳定复现四项高优先级场景与文档过时。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Agent](../src/agent/changes.md)、[Application](../src/application/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：Projection 串行、Session 续聊、审批门槛
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：并发刷新可覆盖旧 Projection；CLI 无法切回恢复 Session；无 Execution 查询；审批拒绝 resolved 持久化失败被吞。
+- 变更后：Projection 刷新串行；`listSessionExecutions`/`getExecution`；CLI `/sessions`/`/session`/`/executions` 与启动续聊；审批 resolved 失败 fail-closed。
+- 修改原因：用户按影响排序指出三项差距（对照 §11 与严格提交门槛）。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Application](../src/application/changes.md)、[CLI](../src/application/cli/changes.md)、[Tool](../src/runtime/tool/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：悬空 Workspace 引用与 PREPARED 事务绑定
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：Session 引用缺失 Workspace 仍可写启动；PREPARED 不校验 Operation.record.transactionId。
+- 变更后：冷启动 `assertProjectionReferences` + bind 失败拒启；`validatePrepared` 强制事务 ID（及 sessionId）一致。
+- 修改原因：用户复现两处恢复完整性漏洞。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Composition](../src/composition/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：live Terminal 恢复边界与 Journal COMMITTED 校验
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：`recoverWorkspace` 可覆盖仍在运行的 Terminal intent；`indexJournal` 不校验 COMMITTED 相对 PREPARED 的顺序与重复/冲突标记。
+- 变更后：Coordinator live Terminal 登记 + recover 拒绝；Journal 顺序/重复 COMMITTED fail-closed。
+- 修改原因：用户复现两处（高/中）仍可写启动或掩盖未确认清理进程。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Workspace](../src/runtime/workspace/changes.md)、[Persistence](../src/runtime/persistence/changes.md)、[Application](../src/application/changes.md)、[Tool](../src/runtime/tool/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：活跃 Execution 误中断与 Context data 丢失
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：每次 Projection 刷新把 CREATED/STARTED 标 INTERRUPTED；Session 恢复只拼 messages。
+- 变更后：中断仅冷启动 `interruptUnfinished`；Projection/restore 保留 `context.data`。
+- 修改原因：用户复现运行期历史查询失真与自定义 Loop 依赖的 data 丢失。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Agent](../src/agent/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。
+
+### 2026-11-26 — Phase 2.4 复查修复：冷启动中断经 refresh 保留与 JSON 安全载荷
+
+- 主题 ID：`delivery.phase-2.4`
+- 变更前：Bootstrap 登记 Workspace 触发的 refresh 冲掉冷启动 INTERRUPTED；Date/Map 经 stableStringify 静默成 `{}`。
+- 变更后：先 flush `interrupted_detected` + refresh 重放 coldInterruptPending；不可 JSON 无损值拒绝提交。
+- 修改原因：用户复现启动后历史查询为 CREATED，以及报告成功却丢失非 JSON data。
+- 验证：全仓回归（darwin）。
+- 模块记录：[Persistence](../src/runtime/persistence/changes.md)、[Composition](../src/composition/changes.md)。
+- 现行规范：[phase-2.4.md](phase-2.4.md)。

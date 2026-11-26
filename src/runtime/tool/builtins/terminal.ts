@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import type {
   ToolHandler,
   ToolSpec,
 } from '../../../harness/contracts/tool/index.ts';
+import type { PersistenceBridge } from '../../persistence/index.ts';
 import {
   WorkspaceError,
   WorkspacePathResolver,
@@ -16,6 +18,7 @@ export function createTerminalTool(
   manager: WorkspaceManager,
   coordinator: WorkspaceAccessCoordinator,
   executor: TerminalExecutor = new TerminalExecutor(),
+  persistence?: PersistenceBridge,
 ): BuiltinTool {
   const spec: ToolSpec = {
     name: 'terminal',
@@ -47,6 +50,40 @@ export function createTerminalTool(
     const cwd = await resolver.resolve('.');
     const timeoutMs =
       typeof args.timeoutMs === 'number' ? args.timeoutMs : undefined;
+    const activityId = randomUUID();
+    const markUnsafeDurable = async () => {
+      coordinator.markUnsafe(workspace.id);
+      if (!persistence) return;
+      try {
+        await persistence.requireWorkspaceRecords([
+          {
+            type: 'workspace/unsafe',
+            payload: { workspaceId: workspace.id, activityId },
+          },
+        ]);
+      } catch {
+        /* Keep process-local UNSAFE if registry write fails. */
+      }
+    };
+    if (persistence) {
+      await persistence.requireWorkspaceRecords([
+        {
+          type: 'workspace/terminal_intent',
+          payload: {
+            activityId,
+            workspaceId: workspace.id,
+            ...(context.executionId === undefined
+              ? {}
+              : { executionId: context.executionId }),
+            ...(context.toolCallId === undefined
+              ? {}
+              : { toolCallId: context.toolCallId }),
+          },
+        },
+      ]);
+    }
+    // Live until handler returns — blocks recoverWorkspace from covering this intent.
+    coordinator.beginTerminalActivity(workspace.id, activityId);
     try {
       const result = await executor.run({
         command: String(args.command),
@@ -54,9 +91,20 @@ export function createTerminalTool(
         ...(context.signal === undefined ? {} : { signal: context.signal }),
         ...(timeoutMs === undefined ? {} : { timeoutMs }),
         onCleanupUncertain: () => {
-          coordinator.markUnsafe(workspace.id);
+          void markUnsafeDurable();
         },
       });
+      if (persistence) {
+        await persistence.requireWorkspaceRecords([
+          {
+            type: 'workspace/terminal_settled',
+            payload: {
+              activityId,
+              workspaceId: workspace.id,
+            },
+          },
+        ]);
+      }
       return {
         content: JSON.stringify(
           {
@@ -76,9 +124,11 @@ export function createTerminalTool(
       };
     } catch (error) {
       if (error instanceof WorkspaceError && error.code === 'unsafe') {
-        coordinator.markUnsafe(workspace.id);
+        await markUnsafeDurable();
       }
       throw error;
+    } finally {
+      coordinator.endTerminalActivity(workspace.id, activityId);
     }
   };
   return { spec, handler, meta };

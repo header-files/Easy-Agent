@@ -84,3 +84,21 @@
 - 变更后：凭证字符类为 `[A-Za-z0-9._~+/=-]+`，在 `&|;` 等元字符前截断。
 - 修改原因：五次复查——无空格紧邻运算符。
 - 验证：`tests/filesystem-tools.test.ts`。
+
+### 2026-11-26 — 恢复 Session 继续会话与历史 Execution 查询
+
+- 主题 ID：`application.local-cli`
+- 变更前：启动总是 `createSession`；无切换已有 Session 或查询 Execution 的命令。
+- 变更后：有恢复 Session 时默认继续最后一个；新增 `/sessions`、`/session <id>`、`/executions [id]`。
+- 修改原因：phase-2.4 §11 要求 CLI/Application 加载已有 Session 并查询历史 Execution。
+- 验证：`tests/cli.test.ts` Session 切换用例。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — /session 支持唯一 ID 前缀
+
+- 主题 ID：`application.local-cli`
+- 变更前：`/session` 必须输入完整 sessionId。
+- 变更后：精确匹配优先；否则在已加载 Session 中按前缀匹配，唯一则切换，多个则拒绝并提示加长。
+- 修改原因：完整 UUID 不便手输。
+- 验证：`tests/cli.test.ts` 前缀唯一/歧义用例。
+- 现行说明：[README.md](README.md)。

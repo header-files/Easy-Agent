@@ -98,7 +98,7 @@ function application(
   const submitted: { sessionId: string; input: string }[] = [];
   const cancelled: { sessionId: string; executionId: string }[] = [];
   const service: AgentApplicationService = {
-    createSession() {
+    async createSession() {
       const sessionId = `session-${++created}`;
       models.set(sessionId, 'fixture/offline');
       return { sessionId };
@@ -114,19 +114,33 @@ function application(
       ];
     },
     getSessionModel(sessionId) {
-      return models.get(sessionId)!;
+      const model = models.get(sessionId);
+      if (model === undefined) {
+        throw new AgentApplicationError('session_not_found');
+      }
+      return model;
     },
-    setSessionModel(sessionId, modelId) {
+    async setSessionModel(sessionId, modelId) {
       if (!['fixture/offline', 'fixture/other'].includes(modelId)) {
         throw new AgentApplicationError('invalid_input');
       }
       models.set(sessionId, modelId);
     },
     listSessions() {
-      return [];
+      return [...models.keys()].map((sessionId) => ({
+        sessionId,
+        createdAt: '2026-11-26T00:00:00Z',
+        queuedCount: 0,
+      }));
     },
     async deleteSession() {
       return false;
+    },
+    listSessionExecutions() {
+      return [];
+    },
+    getExecution() {
+      return undefined;
     },
     submit(sessionId, input, options) {
       submitted.push({ sessionId, input });
@@ -148,8 +162,8 @@ function application(
     getWorkspaceStatus() {
       throw new AgentApplicationError('session_not_found');
     },
-    recoverWorkspace() {},
-    removeWorkspace() {
+    async recoverWorkspace() {},
+    async removeWorkspace() {
       return false;
     },
     getSessionWorkspaceId() {
@@ -283,6 +297,87 @@ test('CLI /model列出注册模型并只切换当前Session，无效选择保持
   assert.match(streams.text.output, /\* fixture\/other/);
   assert.match(streams.text.output, /\* fixture\/offline/);
   assert.match(streams.text.error, /模型未注册或标识无效/);
+});
+
+test('CLI /sessions 与 /session 可切回已有 Session', async () => {
+  const streams = io(
+    Readable.from([
+      '/new\n/sessions\n/session session-1\nhello\n/session missing\n/exit\n',
+    ]),
+  );
+  const instance = application();
+  const result = await runCli(['chat'], {
+    ...streams,
+    async loadConfig() {
+      return config();
+    },
+    async bootstrap() {
+      return instance.app;
+    },
+  });
+  assert.equal(result, 0);
+  assert.match(streams.text.output, /\* session-2/);
+  assert.match(streams.text.output, /已切换至 Session session-1/);
+  assert.deepEqual(instance.submitted, [
+    { sessionId: 'session-1', input: 'hello' },
+  ]);
+  assert.match(streams.text.error, /Session 不存在/);
+});
+
+test('CLI /session 支持唯一 ID 前缀；歧义前缀拒绝', async () => {
+  const { resolveSessionIdQuery } =
+    await import('../src/application/cli/run-cli.ts');
+  const sessions = [
+    { sessionId: '72aab98e-a78d-4fd7-997d-1525dc3869df' },
+    { sessionId: '72bb0000-0000-4000-8000-000000000001' },
+    { sessionId: 'a1111111-0000-4000-8000-000000000002' },
+  ];
+  assert.deepEqual(resolveSessionIdQuery('a111', sessions), {
+    ok: true,
+    sessionId: 'a1111111-0000-4000-8000-000000000002',
+  });
+  assert.deepEqual(resolveSessionIdQuery('72a', sessions), {
+    ok: true,
+    sessionId: '72aab98e-a78d-4fd7-997d-1525dc3869df',
+  });
+  assert.deepEqual(resolveSessionIdQuery('72', sessions), {
+    ok: false,
+    reason: 'ambiguous',
+  });
+  assert.deepEqual(
+    resolveSessionIdQuery('72aab98e-a78d-4fd7-997d-1525dc3869df', sessions),
+    {
+      ok: true,
+      sessionId: '72aab98e-a78d-4fd7-997d-1525dc3869df',
+    },
+  );
+  assert.deepEqual(resolveSessionIdQuery('missing', sessions), {
+    ok: false,
+    reason: 'not_found',
+  });
+
+  const streams = io(
+    Readable.from([
+      '/new\n/session session-1\nping\n/session session-\n/session session-2\n/exit\n',
+    ]),
+  );
+  const instance = application();
+  const result = await runCli(['chat'], {
+    ...streams,
+    async loadConfig() {
+      return config();
+    },
+    async bootstrap() {
+      return instance.app;
+    },
+  });
+  assert.equal(result, 0);
+  assert.match(streams.text.output, /已切换至 Session session-1/);
+  assert.match(streams.text.error, /前缀匹配到多个/);
+  assert.match(streams.text.output, /已切换至 Session session-2/);
+  assert.deepEqual(instance.submitted, [
+    { sessionId: 'session-1', input: 'ping' },
+  ]);
 });
 
 test('管道多轮、空行、未知命令、new与exit保持顺序，正文不重复打印', async () => {

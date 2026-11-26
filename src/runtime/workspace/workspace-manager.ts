@@ -50,6 +50,45 @@ export class WorkspaceManager {
     return this.insert(name, real);
   }
 
+  /**
+   * Re-attach a previously registered workspace with a fixed id after cold start.
+   * Does not create directories; missing paths are tolerated (tools fail later).
+   */
+  restore(workspace: Workspace): Workspace {
+    this.validName(workspace.name);
+    if (typeof workspace.id !== 'string' || workspace.id.length === 0) {
+      throw new WorkspaceError('invalid_request');
+    }
+    if (this.workspaces.has(workspace.id)) {
+      throw new WorkspaceError(
+        'invalid_request',
+        'Workspace id is already registered.',
+      );
+    }
+    for (const entry of this.workspaces.values()) {
+      if (entry.workspace.name === workspace.name) {
+        throw new WorkspaceError(
+          'invalid_request',
+          'Workspace name is already registered.',
+        );
+      }
+    }
+    if (typeof workspace.rootPath === 'string' && workspace.rootPath.length) {
+      this.assertNoOverlap(workspace.rootPath);
+    }
+    const frozen: Workspace = Object.freeze({
+      id: workspace.id,
+      name: workspace.name,
+      rootPath: workspace.rootPath,
+    });
+    this.workspaces.set(frozen.id, {
+      workspace: frozen,
+      sessionRefs: new Set(),
+    });
+    if (this.defaultId === undefined) this.defaultId = frozen.id;
+    return frozen;
+  }
+
   get(id: string): Workspace | undefined {
     return this.workspaces.get(id)?.workspace;
   }

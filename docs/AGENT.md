@@ -1,6 +1,6 @@
 # Coding Agent 项目工作说明
 
-> 本文指导 Codex、Cursor 等 Coding Agent。**Phase 2.2 已完成（本机 darwin 验收见 `docs/phase-2.2.md` §14）。未获用户明确授权前不要进入 Phase 2.3；仅做已授权范围内的修复与文档维护。**
+> 本文指导 Codex、Cursor 等 Coding Agent。**Phase 2.4（Persistence / Session Event Log / 冷启动重建）已在本机（darwin）完成验收，见 [`docs/phase-2.4.md`](phase-2.4.md) §17。** Phase 2.2 / 2.4 为本机已完成基线；**Phase 2.3（HTTP/SSE）仍暂缓**；未获授权不得进入下一阶段。
 
 ## 1. 产品目标与优先级
 
@@ -12,7 +12,7 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 1. 用户在当前开发任务中的明确要求。
 2. `docs/architecture.md`：当前有效架构基线。
-3. **`docs/phase-2.2.md`：当前唯一有效的阶段设计、任务与验收依据；Phase 0、1.1–1.6、2.1 保留各自基线与历史验收。**
+3. **`docs/phase-2.4.md`：当前唯一有效的阶段设计、任务与验收依据；** Phase 0、1.1–1.6、2.1、2.2 保留各自基线与历史验收；Phase 2.3 暂缓。
 4. `docs/conventions.md`：工程、测试与文档规范。
 5. `docs/roadmap.md`：未来计划，**不是本次任务授权**。
 6. `src/<module>/README.md`：本次修改涉及的模块现行说明（必须先读）；`src/<module>/changes.md`：本模块的历史决策与演进时间线。
@@ -29,22 +29,22 @@ Easy Agent 定位为**开箱即用、灵活可扩展的通用 Agent**，优先�
 
 职责分层不等于固定调用链。不要建立万能 Runtime/Harness 接口，也不要提前实现复杂插件容器。职责和目录设计以 [architecture.md](architecture.md) 为准。
 
-## 3. 当前阶段：Phase 2.2 已完成
+## 3. 当前阶段：Phase 2.4
 
-Phase 1、Phase 2.1 与 [Phase 2.2](phase-2.2.md)（本机 darwin 验收见 §14）均为已完成基线。Windows/Linux 原生项标为未验证，不得宣称完整三平台验收。**未获用户明确授权前不要进入 Phase 2.3**；仅做已授权范围内的修复与文档维护。
+Phase 1、Phase 2.1、[Phase 2.2](phase-2.2.md) 与 [Phase 2.4](phase-2.4.md)（darwin）为本机已完成基线。**Phase 2.3（HTTP/SSE）明确暂缓**；不实现自动 Execution Recovery、Inbox、Steer/Follow-up、Snapshot 或数据库。未获授权仅做已授权范围内的修复与文档维护。
 
 ## 4. 仍不在范围内的功能（待后续授权）
 
 - Docker / OS 级沙箱、Tool Permission ACL、`sensitive` 策略、文件删除/移动。
-- HTTP Server、REST/SSE、Web UI、正式 SDK、CLI 远程模式及 HTTP 专有路由、鉴权或线协议。
-- **Session Event Log 的 JSONL 读取和写入**、Transaction Journal、持久化事件投影、重放或崩溃恢复。
+- HTTP Server、REST/SSE、Web UI、正式 SDK、CLI 远程模式及 HTTP 专有路由、鉴权或线协议（Phase 2.3）。
+- 崩溃后自动继续 Agent Loop、自动重试 LLM/Tool、自动恢复排队任务（Phase 3）。
+- Snapshot、数据库/Redis、多进程共享写入、完整跨进程 Execution Recovery。
 - Runtime Event Bus、持久化 Inbox、Steer/Follow-up、MCP/Skills、模型自动发现、热更新 Provider、Alias/Fallback。
 - 擅自重写 Loop/Engine/FIFO；不向 Engine ExecutionStatus 加 QUEUED 或 WAITING_APPROVAL。
-- 自动启动 Phase 2.3。
 
 ## 5. 推荐开发顺序
 
-Phase 2.2 已按 2.2.0 → 2.2.6 落地并停止；下一阶段须用户单独授权。
+按 [Phase 2.4](phase-2.4.md) §12：2.4.0 → 2.4.8；十项设计决策不可擅自更改。
 
 ## 6. 开发与验证约束
 

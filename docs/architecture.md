@@ -36,7 +36,7 @@ Easy Agent 是**开箱即用、灵活可扩展的通用 Agent**，采用：
 
 这张图是**职责组织图，不是执行请求调用链**。Harness 不是 Execution 与 Runtime 之间的必经中间件；Composition / Bootstrap 负责装配，不负责运行用户任务。各模块通过必要的契约直接协作。
 
-**Phase 0、Logging、Phase 1.1～1.6 与 Phase 2.1 已完成；当前阶段为 [Phase 2.2](phase-2.2.md)（内置工具、Workspace、审批与本地受控执行）。** 工程基线与历史验收见各阶段文档；实际能力与验收边界以模块文档和阶段记录为准。
+**Phase 0、Logging、Phase 1.1～1.6、Phase 2.1、Phase 2.2 已完成；[Phase 2.4](phase-2.4.md)（Persistence / Session Event Log / 冷启动重建）为本机（darwin）已落地基线，验收以阶段文档与实测为准；Phase 2.3 HTTP/SSE 仍暂缓。** 工程基线与历史验收见各阶段文档；实际能力与验收边界以模块文档和阶段记录为准。
 
 ## 2. 核心模块职责
 

@@ -150,7 +150,7 @@ test('Manager 摘要支持空闲与运行观察，不泄露公共队列或新增
     >,
     Assignable<ReturnType<SessionAgent['cancel']>, boolean>,
     Assignable<ReturnType<SessionAgent['getModel']>, string | undefined>,
-    Assignable<ReturnType<SessionAgent['setModel']>, void>,
+    Assignable<ReturnType<SessionAgent['setModel']>, void | Promise<void>>,
     Assignable<Promise<SessionExecution>, ReturnType<SessionAgent['submit']>>,
   ] = [true, true, true, true, true, true, true, true, true, false];
   assert.deepEqual(checks, [

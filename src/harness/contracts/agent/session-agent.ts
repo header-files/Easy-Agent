@@ -10,8 +10,11 @@ export interface SessionAgent {
   getContext(): AgentLoopContext['context'];
   /** Current default model for future submissions; queued work is already fixed. */
   getModel(): string | undefined;
-  /** Replace the default model for future submissions only. */
-  setModel(modelId: string): void;
+  /**
+   * Replace the default model for future submissions only.
+   * When persistence is enabled, resolves only after session/model_changed commits.
+   */
+  setModel(modelId: string): void | Promise<void>;
   /** Workspace bound at session creation, if any. */
   getWorkspaceId?(): string | undefined;
   /** Accept queued/running cancellation in this session; true is not a terminal acknowledgement. */

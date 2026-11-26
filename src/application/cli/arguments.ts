@@ -26,11 +26,13 @@ export const help = `用法：easy-agent chat [选项]
 环境变量：EASY_AGENT_DEFAULT_MODEL、EASY_AGENT_MAX_MODEL_RETRIES、
           EASY_AGENT_STREAM、LOG_LEVEL；Provider 字段可引用 \${ENV_NAME}。
 交互命令：/model 查看或切换模型；
+          /sessions 列出 Session，/session <id|前缀> 切换（前缀须唯一）；
+          /executions [id] 查询当前 Session 的历史 Execution；
           /workspace status|list|register|create|use|recover；
           /tools [name,...|all] 选择下次 /new 的工具集合；
           /new [workspaceId] 新建 Session，/exit 退出，Ctrl+C 取消当前任务。
 写文件与 Terminal 默认需要审批；Terminal 不是强文件系统沙箱。
-Session 仅保存在本次进程内存中。
+配置 persistence.dataDir 时启动可恢复已有 Session 并继续会话。
 `;
 
 export function parseChatArguments(args: readonly string[]): ChatArguments {

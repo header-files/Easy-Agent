@@ -70,3 +70,68 @@ Phase 0 创建说明文档建立初始基线；以下随实际功能落地追加
 - 影响范围：DefaultSessionAgent、DefaultAgentManager、Harness Session 契约；FIFO/取消/上下文语义不变。
 - 验证：Application Workspace 集成测试与全仓回归。
 - 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — Session 持久化门槛与冷启动恢复
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：Session 纯内存；submit 立即 QUEUED。
+- 变更后：可选 PersistenceBridge；submit 经 `PENDING_PERSIST` 提交 user/message+execution/created 后再入队；终态写入 completed/failed/cancelled；Manager 支持 `restoreSession`；模型切换写入 session/model_changed。
+- 修改原因：Phase 2.4 严格持久化与 Event Replay 续聊。
+- 影响范围：DefaultSessionAgent、DefaultAgentManager；FIFO 语义保留。
+- 验证：`tests/phase-2.4-persistence.test.ts`。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 终态先提交再 settle；创建/模型切换提交门槛
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：先兑现 result 再异步写终态；create/setModel 先改内存。
+- 变更后：`settleDurable` 先 COMMITTED 再更新历史与 resolve；`ensureCreated`/`setModel` 提交成功后才对外确认；Application createSession 改为 async 并持生命周期共享锁。
+- 修改原因：复查指出违反终态与配置提交门槛。
+- 验证：phase-2.4 续聊/创建/COMPLETED 立即可见用例。
+
+### 2026-11-26 — PENDING_PERSIST 取消协调，避免幽灵 Execution
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：`cancel` 在 PENDING_PERSIST 立即 settle CANCELLED，`persistThenQueue` 仍可能写入 user/message 与 execution/created 且无取消终态。
+- 变更后：取消仅置 `cancelRequested`；落盘前中止且不写创建事实；若创建事实已 COMMITTED 则追加 durable cancel 终态后再 settle。
+- 修改原因：复查复现取消后仍落盘创建事件，冷启动误判为异常中断。
+- 影响范围：`default-session-agent.ts`。
+- 验证：phase-2.4「PENDING_PERSIST 取消不会留下无终态幽灵 Execution」；全仓 311 通过。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 删除持久化、PENDING_PERSIST 忙碌与提交后失败协调
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：deleteSession 仅删内存；closeIfIdle 忽略 PENDING_PERSIST；创建已提交但刷新失败时取消只返回内存 CANCELLED；restore 丢失初始 context/参数/extensions。
+- 变更后：删除提交 `session/deleted`（失败则 revive）；PENDING_PERSIST 视为忙碌；durableCommitted 后取消/失败必写终态；`session/created` 全量配置+上下文并在 restore 拼接。
+- 修改原因：复查五项高/中优先级复现。
+- 影响范围：`default-session-agent.ts`、`default-agent-manager.ts`。
+- 验证：phase-2.4 新增对应用例。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 权威 updatedContext、uncertain 删除与终态 settling 忙碌
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：终态只存消息 delta 且 restore 拼接初始上下文；commit_uncertain 删除会 revive；终态落盘前清空 active 允许删除。
+- 变更后：completed 写入完整 `context`；authoritative 恢复不再拼接；uncertain 删除抛错且不 revive；`durableSettling` 覆盖终态窗口。
+- 修改原因：复查 updatedContext 替换、不确定提交、终态期间可删。
+- 验证：phase-2.4 与 default-agent-manager 回归。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — restoreSession 恢复 Context data
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：`restoreSession` 只拼 messages，丢弃 `initialContext.data` / 权威 completed 的 data。
+- 变更后：非权威路径用 `initialContext.data`；权威路径用 `committedContextData`。
+- 修改原因：复查复现 `data.marker` 冷启动后从 getContext/Loop 消失。
+- 验证：phase-2.4「恢复 Session 保留 Context data」。
+- 现行说明：[README.md](README.md)。
+
+### 2026-11-26 — 持久化 Context 仅接受 JSON 安全 data
+
+- 主题 ID：`agent.persistence.phase-2.4`
+- 变更前：内存契约允许 Date/Map 等；落盘经 stableStringify 静默变成 `{}` 仍报告创建成功。
+- 变更后：文档明确 JSON 安全子集；无法无损序列化时 Persistence 拒绝，Application 报 `operation_failed`。
+- 修改原因：复查报告成功却丢失非 JSON data。
+- 验证：phase-2.4「含 Date/Map 的 context.data 创建 Session 被拒绝」。
+- 现行说明：[README.md](README.md)。

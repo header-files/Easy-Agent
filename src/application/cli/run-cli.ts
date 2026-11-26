@@ -34,6 +34,28 @@ export interface RunCliOptions {
   version?: string;
 }
 
+/**
+ * Resolve a Session id query: exact match first, otherwise a unique id prefix.
+ * Ambiguous prefixes are rejected so the current Session is left unchanged.
+ */
+export function resolveSessionIdQuery(
+  query: string,
+  sessions: readonly { sessionId: string }[],
+):
+  | { ok: true; sessionId: string }
+  | { ok: false; reason: 'not_found' | 'ambiguous' } {
+  const target = query.trim();
+  if (target.length === 0) return { ok: false, reason: 'not_found' };
+  const exact = sessions.find((item) => item.sessionId === target);
+  if (exact) return { ok: true, sessionId: exact.sessionId };
+  const matches = sessions.filter((item) => item.sessionId.startsWith(target));
+  if (matches.length === 1) {
+    return { ok: true, sessionId: matches[0]!.sessionId };
+  }
+  if (matches.length === 0) return { ok: false, reason: 'not_found' };
+  return { ok: false, reason: 'ambiguous' };
+}
+
 function reportFailure(error: unknown, destination: Writable): void {
   if (error instanceof CliArgumentError)
     destination.write(`${error.message}\n`);
@@ -56,17 +78,18 @@ function reportFailure(error: unknown, destination: Writable): void {
   } else destination.write('应用操作失败，请检查配置和运行环境。\n');
 }
 
-function createBoundSession(
+async function createBoundSession(
   service: EasyAgentApplication['service'],
   workspaceId: string | undefined,
   allowedNames: string[] | undefined,
-): string {
-  return service.createSession({
+): Promise<string> {
+  const session = await service.createSession({
     ...(workspaceId === undefined ? {} : { workspaceId }),
     ...(allowedNames === undefined
       ? {}
       : { config: { tools: { allowedNames } } }),
-  }).sessionId;
+  });
+  return session.sessionId;
 }
 
 async function handleWorkspace(
@@ -140,7 +163,7 @@ async function handleWorkspace(
       }
       service.getWorkspaceStatus(id);
       state.workspaceId = id;
-      state.sessionId = createBoundSession(
+      state.sessionId = await createBoundSession(
         service,
         state.workspaceId,
         state.allowedNames,
@@ -158,7 +181,7 @@ async function handleWorkspace(
         error.write('请使用 /workspace recover [id] confirm\n');
         return;
       }
-      service.recoverWorkspace(id);
+      await service.recoverWorkspace(id);
       output.write(`[Workspace ${id} recovered]\n`);
       return;
     }
@@ -251,7 +274,15 @@ export async function runCli(
         workspaceId: undefined,
         allowedNames: undefined,
       };
-      state.sessionId = application.service.createSession().sessionId;
+      const restored = application.service.listSessions();
+      if (restored.length > 0) {
+        // Continue the most recently listed restored Session (cold-start order).
+        const resume = restored[restored.length - 1]!;
+        state.sessionId = resume.sessionId;
+        output.write(`[已恢复 Session ${state.sessionId}]\n`);
+      } else {
+        state.sessionId = (await application.service.createSession()).sessionId;
+      }
       state.workspaceId = application.service.getSessionWorkspaceId(
         state.sessionId,
       );
@@ -259,7 +290,7 @@ export async function runCli(
         `Easy Agent — OS=${process.platform} shell=${application.service.getTerminalShell()}\n`,
       );
       output.write(
-        '命令：/model、/workspace、/tools、/new、/exit；Ctrl+C 取消当前任务。\n',
+        '命令：/sessions、/session、/executions、/model、/workspace、/tools、/new、/exit；Ctrl+C 取消当前任务。\n',
       );
       if (!state.workspaceId) {
         output.write(
@@ -291,7 +322,7 @@ export async function runCli(
               continue;
             }
           }
-          state.sessionId = createBoundSession(
+          state.sessionId = await createBoundSession(
             application.service,
             state.workspaceId,
             state.allowedNames,
@@ -299,6 +330,95 @@ export async function runCli(
           output.write(
             `[已切换至新 Session${state.workspaceId ? ` workspace=${state.workspaceId}` : ''}]\n`,
           );
+          continue;
+        }
+        if (command === '/sessions') {
+          const sessions = application.service.listSessions();
+          if (sessions.length === 0) {
+            output.write('(无 Session)\n');
+          } else {
+            output.write(
+              `${sessions
+                .map(
+                  (item) =>
+                    `${item.sessionId === state.sessionId ? '* ' : '  '}${item.sessionId}`,
+                )
+                .join('\n')}\n`,
+            );
+          }
+          continue;
+        }
+        if (command.startsWith('/session ')) {
+          const target = command.slice('/session '.length).trim();
+          const resolved = resolveSessionIdQuery(
+            target,
+            application.service.listSessions(),
+          );
+          if (!resolved.ok) {
+            error.write(
+              resolved.reason === 'ambiguous'
+                ? 'Session ID 前缀匹配到多个，请输入更长前缀；当前 Session 未改变。\n'
+                : 'Session 不存在，当前 Session 未改变。\n',
+            );
+            continue;
+          }
+          try {
+            application.service.getSessionModel(resolved.sessionId);
+            state.sessionId = resolved.sessionId;
+            state.workspaceId = application.service.getSessionWorkspaceId(
+              state.sessionId,
+            );
+            output.write(`[已切换至 Session ${state.sessionId}]\n`);
+          } catch {
+            error.write('Session 不存在，当前 Session 未改变。\n');
+          }
+          continue;
+        }
+        if (command === '/executions' || command.startsWith('/executions ')) {
+          const detailId =
+            command === '/executions'
+              ? undefined
+              : command.slice('/executions '.length).trim();
+          try {
+            if (detailId) {
+              const execution = application.service.getExecution(
+                state.sessionId,
+                detailId,
+              );
+              if (!execution) {
+                error.write('Execution 不存在或不属于当前 Session。\n');
+              } else {
+                output.write(
+                  `${execution.executionId} status=${execution.status}` +
+                    `${execution.interrupted ? ' interrupted' : ''}` +
+                    `${execution.model ? ` model=${execution.model}` : ''}` +
+                    `${execution.input !== undefined ? `\ninput: ${execution.input}` : ''}` +
+                    `${execution.result !== undefined ? `\nresult: ${JSON.stringify(execution.result)}` : ''}` +
+                    `${execution.error !== undefined ? `\nerror: ${JSON.stringify(execution.error)}` : ''}\n`,
+                );
+              }
+            } else {
+              const executions = application.service.listSessionExecutions(
+                state.sessionId,
+              );
+              if (executions.length === 0) {
+                output.write('(当前 Session 无已记录 Execution)\n');
+              } else {
+                output.write(
+                  `${executions
+                    .map(
+                      (item) =>
+                        `${item.executionId} ${item.status}` +
+                        `${item.interrupted ? ' interrupted' : ''}` +
+                        `${item.input !== undefined ? ` ${JSON.stringify(item.input)}` : ''}`,
+                    )
+                    .join('\n')}\n`,
+                );
+              }
+            }
+          } catch {
+            error.write('无法查询 Execution 历史。\n');
+          }
           continue;
         }
         if (command === '/model') {
@@ -316,7 +436,7 @@ export async function runCli(
         if (command.startsWith('/model ')) {
           const modelId = command.slice('/model '.length).trim();
           try {
-            application.service.setSessionModel(state.sessionId, modelId);
+            await application.service.setSessionModel(state.sessionId, modelId);
             output.write(`[当前模型：${modelId}]\n`);
           } catch {
             error.write('模型未注册或标识无效，当前 Session 模型未改变。\n');
@@ -359,7 +479,7 @@ export async function runCli(
         }
         if (command.startsWith('/')) {
           error.write(
-            '未知交互命令。可使用 /model、/workspace、/tools、/new 或 /exit。\n',
+            '未知交互命令。可使用 /sessions、/session、/executions、/model、/workspace、/tools、/new 或 /exit。\n',
           );
           continue;
         }

@@ -112,7 +112,7 @@ test('Application：Workspace 绑定、写文件审批通过与拒绝', async ()
       logger: quiet,
     });
     try {
-      const { sessionId } = app.service.createSession();
+      const { sessionId } = await app.service.createSession();
       assert.ok(app.service.getSessionWorkspaceId(sessionId));
       const status = app.service.getWorkspaceStatus(
         app.service.getSessionWorkspaceId(sessionId)!,
@@ -165,7 +165,7 @@ test('Application：Workspace 绑定、写文件审批通过与拒绝', async ()
       logger: quiet,
     });
     try {
-      const session = app2.service.createSession();
+      const session = await app2.service.createSession();
       app2.service.subscribeApprovals((request) => {
         if (request.status === 'PENDING') {
           app2.service.decideApproval(request.id, 'reject');

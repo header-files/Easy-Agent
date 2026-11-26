@@ -1,12 +1,12 @@
 ---
-description: Easy Agent project-wide architecture, Phase 2.2 complete, change history policy
+description: Easy Agent project-wide architecture, Phase 2.4 complete, change history policy
 alwaysApply: true
 ---
 
-这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-2.2.md`**（含 §14 本机验收），需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
+这是 Easy Agent 项目。开始工作先阅读 `AGENTS.md`、`docs/AGENT.md` 和 **`docs/phase-2.4.md`**（含 §17 本机验收），需要时阅读 `docs/architecture.md`、`docs/conventions.md`、`docs/changes.md`；**开发某模块时先读其 `src/<module>/README.md` 与 `changes.md`**，必要时读其子模块文档。
 
-**Phase 2.2 已在本机（darwin）完成：内置 FileSystem/Terminal、Workspace、审批与 CLI 闭环。** 未获用户明确授权前不要进入 Phase 2.3；仅做已授权范围内的修复与文档维护。Windows/Linux 原生验收标为未验证。复用 Phase 1 ToolRegistry/ToolExecutor、Loop/Engine/Session FIFO 与 Phase 2.1 多模型装配；不新增 Tool Permission ACL；审批独立于工具超时；Workspace 锁由 Runtime 统一协调；Terminal 清理不确定时先置 UNSAFE 再释放锁；文件工具不得通过符号链接访问。
+**Phase 2.4 已在本机（darwin）完成：Persistence、Session Event Log、Workspace Registry、冷启动重建与严格提交门槛。** Phase 2.2 为本机已完成基线。未获用户明确授权前不要进入下一阶段；Phase 2.3 HTTP/SSE 仍暂缓。Windows/Linux 原生验收标为未验证。Transaction Journal 是唯一提交依据；Roll Forward 不重跑 LLM/Tool；未完成 Execution 不自动恢复；配置 `persistence.dataDir`。复用 Phase 1 Loop/Engine/Session FIFO 与 Phase 2.1/2.2 模型与 Workspace 能力；不新增 Tool Permission ACL。
 
-运行日志统一使用 `src/runtime/logging` 的 Logger 门面、结构化字段和 stderr；涉及日志先读其 README/changes。不直接依赖 Pino，不记录密钥、完整消息或请求/响应正文；Model/Tool 生命周期日志遵循各能力域的字段白名单，不记录原始参数、工具结果或异常载荷。文件轮转、远端服务、Session 事件与 trace 系统不在当前范围。
+运行日志统一使用 `src/runtime/logging` 的 Logger 门面、结构化字段和 stderr；涉及日志先读其 README/changes。不直接依赖 Pino，不记录密钥、完整消息或请求/响应正文；Model/Tool 生命周期日志遵循各能力域的字段白名单，不记录原始参数、工具结果或异常载荷。文件轮转、远端服务、HTTP 事件订阅与 trace 系统不在当前范围。
 
 架构基线：四个运行职责层（Application / Agent / Execution / Runtime）+ 横向 Harness + Composition / Bootstrap；Loop 策略与 Engine 机制分离；Runtime 按能力域替换；避免过度设计。六个一级职责模块均需就近 `README.md` 和 `changes.md`。模块级实质性变更同步更新模块 README 并在模块 changes 追加历史；全局/跨模块决策还需在 `docs/changes.md` 保留摘要与链接。以阶段验收和实际运行结果为准，不把规划功能描述为已实现。

@@ -1,30 +1,30 @@
 # Easy Agent 技术栈、工程与文档规范
 
-> 当前阶段：**Phase 1.6（Application Service / Composition / CLI）**。Phase 0 与统一 Logging 基线继续适用；Phase 1.1～1.5 的 Model/Tool/Loop/Engine/Agent 基线继续适用，当前唯一阶段依据见 [Phase 1.6 技术方案](phase-1.6.md)，不自动进入后续阶段。
+> 当前阶段基线：**Phase 2.4（Persistence / Session Event Log / 冷启动重建）**，详见 [Phase 2.4 技术方案](phase-2.4.md)。Phase 0、Logging、Phase 1.1～1.6、Phase 2.1、Phase 2.2 继续适用；Phase 2.3 HTTP/SSE 暂缓；未获用户明确授权不进入下一阶段。
 
 ## 1. 技术基线
 
-| 项目         | 约定                                                                              |
-| ------------ | --------------------------------------------------------------------------------- |
-| 主要语言     | TypeScript                                                                        |
-| 运行环境     | Node.js 26.x LTS；`engines.node` 为 `>=26.0.0 <27`，`.nvmrc` 为 `26`              |
-| 模块系统     | ESM，不混用 CommonJS                                                              |
-| 包管理       | npm 单包；保留 `package-lock.json`，使用 `npm ci` 复现依赖；`private: true`       |
-| TypeScript   | 6.0.3；`strict: true`、NodeNext、ES2024，统一配置编译和类型检查                   |
-| 工程质量     | ESLint 10.15.0、`@eslint/js` 10.0.1、typescript-eslint 8.73.0、Prettier 3.10.1    |
-| Node.js 类型 | `@types/node` 26.6.6，与运行环境主版本一致                                        |
-| 构建         | `npm run build`，仅将 `src/` 编译到 `dist/`，输出原生 ESM JavaScript              |
-| 检查         | `npm run typecheck`、`npm run lint`、`npm run format:check`                       |
-| 格式修复     | `npm run format`；检查代码、工程配置和 Markdown 文档                              |
-| 测试         | `npm test`；`pretest` 自动构建，Node.js 内置 `node:test` 执行 `tests/*.test.ts`   |
-| 交互入口     | 本阶段实现本地 CLI 与共享 Application Service；HTTP、正式 SDK、Web UI 仍属未来    |
-| 模型         | Phase 1.1 实现 ModelClient 与 OpenAI-compatible Chat Completions Adapter          |
-| 工具         | Phase 1.2 ToolRegistry/ToolExecutor，Ajv 8 的 draft-07 严格输入校验               |
-| Loop         | Harness 通用 AgentLoop 契约；Execution DefaultAgentLoop 的 AsyncIterable 流式策略 |
-| Engine       | Harness Execution 契约；DefaultExecutionEngine 的内存生命周期、事件、控制与快照   |
-| Agent        | Phase 1.5 已提供 Session 管理、FIFO、上下文与独立观察流，不接入持久化             |
-| 日志         | Runtime Logging 统一门面，Pino 10.4.0 输出结构化 JSON 到 stderr                   |
-| 数据存储     | 当前无业务持久化；未来依需求采用简单本地方案起步                                  |
+| 项目         | 约定                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------- |
+| 主要语言     | TypeScript                                                                               |
+| 运行环境     | Node.js 26.x LTS；`engines.node` 为 `>=26.0.0 <27`，`.nvmrc` 为 `26`                     |
+| 模块系统     | ESM，不混用 CommonJS                                                                     |
+| 包管理       | npm 单包；保留 `package-lock.json`，使用 `npm ci` 复现依赖；`private: true`              |
+| TypeScript   | 6.0.3；`strict: true`、NodeNext、ES2024，统一配置编译和类型检查                          |
+| 工程质量     | ESLint 10.15.0、`@eslint/js` 10.0.1、typescript-eslint 8.73.0、Prettier 3.10.1           |
+| Node.js 类型 | `@types/node` 26.6.6，与运行环境主版本一致                                               |
+| 构建         | `npm run build`，仅将 `src/` 编译到 `dist/`，输出原生 ESM JavaScript                     |
+| 检查         | `npm run typecheck`、`npm run lint`、`npm run format:check`                              |
+| 格式修复     | `npm run format`；检查代码、工程配置和 Markdown 文档                                     |
+| 测试         | `npm test`；`pretest` 自动构建，Node.js 内置 `node:test` 执行 `tests/*.test.ts`          |
+| 交互入口     | 本阶段实现本地 CLI 与共享 Application Service；HTTP、正式 SDK、Web UI 仍属未来           |
+| 模型         | Phase 1.1 实现 ModelClient 与 OpenAI-compatible Chat Completions Adapter                 |
+| 工具         | Phase 1.2 ToolRegistry/ToolExecutor，Ajv 8 的 draft-07 严格输入校验                      |
+| Loop         | Harness 通用 AgentLoop 契约；Execution DefaultAgentLoop 的 AsyncIterable 流式策略        |
+| Engine       | Harness Execution 契约；DefaultExecutionEngine 的内存生命周期、事件、控制与快照          |
+| Agent        | Phase 1.5 Session 管理/FIFO/上下文；Phase 2.4 可选 PersistenceBridge 与冷启动恢复        |
+| 日志         | Runtime Logging 统一门面，Pino 10.4.0 输出结构化 JSON 到 stderr                          |
+| 数据存储     | Phase 2.4 本地 Journal + Session Event Log + Workspace Registry（`persistence.dataDir`） |
 
 本阶段不要为了未来扩展引入数据库、Redis、消息队列、分布式调度、复杂 DI 容器、微服务或 Monorepo。
 
@@ -119,7 +119,7 @@
 - CLI 本地模式从 Bootstrap 取得 Service，终端适配器不直接创建或调用 ModelClient、ToolExecutor、DefaultAgentLoop 或 Engine，也不复制 FIFO。
 - 用户正文依据 output_delta 展示，不重复渲染 model_event.text_delta；最终 ExecutionResult 是权威结果。观察流关闭/溢出不自动取消 Execution，仍须独立处理 result。
 - Ctrl+C 通过 Service 显式发起取消，不能把退出观察等同于取消。/new 创建新 Session，原 Session 保留内存；/exit 等待必要收尾，不能伪装强制终止或回滚副作用。
-- 本阶段不实现 HTTP Server、Session Event Log、持久化 Inbox 或恢复；具体 API/配置及行为由 [Application](../src/application/README.md)、[Composition](../src/composition/README.md) 和 [Phase 1.6](phase-1.6.md) 维护。
+- 本阶段不实现 HTTP Server、持久化 Inbox/Steer；Session Event Log 与冷启动恢复见 [Phase 2.4](phase-2.4.md)。具体 API/配置及行为由 [Application](../src/application/README.md)、[Composition](../src/composition/README.md) 与阶段文档维护。
 
 ## 4. 测试与验收规范
 

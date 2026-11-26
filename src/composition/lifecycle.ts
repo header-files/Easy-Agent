@@ -14,7 +14,7 @@ export function manageLifecycle(delegate: AgentApplicationService) {
   const service: AgentApplicationService = {
     createSession(options) {
       check();
-      return delegate.createSession(options);
+      return Promise.resolve(delegate.createSession(options));
     },
     listModels() {
       check();
@@ -26,7 +26,7 @@ export function manageLifecycle(delegate: AgentApplicationService) {
     },
     setSessionModel(id, modelId) {
       check();
-      delegate.setSessionModel(id, modelId);
+      return Promise.resolve(delegate.setSessionModel(id, modelId));
     },
     listSessions() {
       check();
@@ -35,6 +35,14 @@ export function manageLifecycle(delegate: AgentApplicationService) {
     async deleteSession(id) {
       check();
       return delegate.deleteSession(id);
+    },
+    listSessionExecutions(id) {
+      check();
+      return delegate.listSessionExecutions(id);
+    },
+    getExecution(sessionId, executionId) {
+      check();
+      return delegate.getExecution(sessionId, executionId);
     },
     submit(id, input, options) {
       check();
@@ -72,7 +80,7 @@ export function manageLifecycle(delegate: AgentApplicationService) {
     },
     recoverWorkspace(id) {
       check();
-      delegate.recoverWorkspace(id);
+      return delegate.recoverWorkspace(id);
     },
     removeWorkspace(id) {
       check();
